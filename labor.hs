@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 
 module Labor where
  
@@ -12,8 +13,14 @@ module Labor where
  -}
 
 import qualified Data.Map as M
+import qualified Data.Text as T
+import qualified Data.ByteString.Lazy as BSL
+import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State
 import Control.Monad.Reader
+import Data.Aeson (decode,encode,FromJSON,parseJSON,(.:),ToJSON,toJSON,(.=),object)
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import Data.List
 import Data.UUID
 import System.Directory
@@ -47,8 +54,8 @@ data ParameterValue = StringParam String
 
 type ParameterSet = M.Map String ParameterValue
 
-data ExecutionStatus = Prepared | Running | Success | Failure
-  deriving (Show)
+data ExecutionStatus = Prepared | Running | Success | Failure | Loaded
+  deriving (Show,Read)
 
 data Execution = Exec {
     eScenario :: ScenarioDescription
@@ -56,6 +63,47 @@ data Execution = Exec {
   , ePath     :: String
   , eStatus   :: ExecutionStatus
 } deriving (Show)
+
+data StoredExecution = Stored {
+    seParamSet :: ParameterSet
+  , sePath     :: String
+  , seStatus   :: ExecutionStatus
+} deriving (Show)
+
+instance ToJSON ParameterValue where
+    toJSON (StringParam str) = object ["type" .= ("string"::T.Text), "val" .= T.pack str]
+    toJSON (NumberParam n)   = object ["type" .= ("num"::T.Text), "val" .= n]
+    toJSON (Array xs)        = toJSON xs
+
+instance ToJSON ExecutionStatus where
+    toJSON = toJSON . show
+
+instance ToJSON Execution where
+    toJSON (Exec sc params path status) = object    [ "scenario-name" .= sName sc
+                                                    , "params" .= params
+                                                    , "path" .= path
+                                                    , "status" .= status
+                                                    ] 
+
+instance FromJSON ParameterValue where
+    parseJSON (A.Object v) = (v .: "type") >>= match
+        where match :: T.Text -> A.Parser ParameterValue
+              match "string" = StringParam <$> v .: "val"
+              match "num"    = NumberParam <$> v .: "val"
+              match _        = mzero
+    
+    parseJSON _ = mzero
+
+instance FromJSON ExecutionStatus where
+    parseJSON (A.String txt) = return $ read $ T.unpack txt
+    parseJSON _ = mzero
+
+instance FromJSON StoredExecution where
+    parseJSON (A.Object v) = Stored <$>
+                               v .: "params" <*>
+                               v .: "path" <*>
+                               v .: "status"
+    parseJSON _          = mzero
 
 data Backend m = Backend {
     bName      :: String
@@ -81,8 +129,10 @@ defaultBackend = Backend "default IO backend" prepare advertise setup run teardo
   where prepare sc params = do
                   uuid <- liftIO $ (randomIO :: IO (UUID))
                   let rundir = intercalate "/" [".", sName sc, show uuid]
+                  let exec = Exec sc params rundir Prepared
                   liftIO $ createDirectoryIfMissing True rundir
-                  return $ Exec sc params rundir Prepared
+                  liftIO $ BSL.writeFile (rundir ++ "/execution.json") (encode exec)
+                  return exec
         advertise exec    = do
                   let lines = unlines $ map ($ exec) [show. sName . eScenario, show . eParamSet, ePath]
                   liftIO $ putStrLn lines
@@ -90,10 +140,20 @@ defaultBackend = Backend "default IO backend" prepare advertise setup run teardo
         run               = callHooks "run" . eScenario
         teardown          = callHooks "teardown" . eScenario
         analyze           = callHooks "analyze" . eScenario
-        result exec       = return . defaultResult exec
-        load              = undefined
-
         callHooks key sc  = maybe (error $ "no such hook: " ++ key) unAction (M.lookup key $ sHooks sc)
+
+        result exec       = return . defaultResult exec
+
+        load sc           = do
+            dirs <- filter notDot <$> getDirectoryContents (sName sc)
+            let paths = map ((sName sc ++ "/") ++) dirs
+            mapM loadOne paths
+            where notDot dirname = not (take 1 dirname == ".")
+                  loadOne path = do
+                    exec' <- (liftM forStored) . decode <$> BSL.readFile (path ++ "/execution.json")
+                    maybe (error $ "decoding: " ++ path) return exec'
+
+                    where forStored (Stored params path status) = Exec sc params path status
 
 defaultResult :: Execution -> String -> Result IO
 defaultResult exec name = Result path read append write
@@ -112,6 +172,9 @@ execute b sc prm = do
               bRun b $ exec
               bTeardown b $ exec
               bAnalyze b $ exec
+
+load :: MonadIO m => Backend m -> ScenarioDescription -> m [Execution]
+load b = bLoad b
 
 {- 
  - DSL
@@ -150,6 +213,9 @@ str = StringParam
 num :: Integer -> ParameterValue
 num = NumberParam . fromInteger
 
+arr :: [ParameterValue] -> ParameterValue
+arr = Array
+
 setup :: Step IO () -> State ScenarioDescription ()
 setup = appendHook "setup"
 
@@ -184,14 +250,14 @@ appendResult name dat = do
  -}
 
 vals :: ParameterSet
-vals = M.fromList [("destination",str "google.com"),("packet size",num 32)]
+vals = M.fromList [("destination",str "probecraft.net"),("packet size",num 32)]
 
 ping :: ScenarioDescription
 ping = scenario "ping" $ do
   describe "ping to a remote server"
   parameter "destination" $ do
     describe "a destination server (host or ip)"
-    values $ [str "google.com", str "probecraft.net"]
+    values $ [str "example.com", str "probecraft.net"]
   parameter "packet size" $ do
     describe "packet size in bytes"
     values $ [num 50, num 1500]
