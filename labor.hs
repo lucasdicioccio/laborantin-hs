@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Labor where
@@ -5,14 +6,15 @@ module Labor where
 {- TODO 
  -
  - logging
+ - exports
  - state passing between phases (variables)
- - execution engine
  - resource locking
  - distributed process backend 
  -
  -}
 
 import qualified Data.Map as M
+import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BSL
 import Control.Applicative ((<$>),(<*>))
@@ -29,7 +31,7 @@ import System.Random
 type ParameterSpace = M.Map String ParameterDescription
 type ParameterGenerator = ParameterDescription -> [ParameterValue]
 type Step m a = ReaderT (Backend m,Execution) m a
-newtype Action = Action { unAction :: Step IO ()}
+newtype Action = Action { unAction :: Step IO () }
 
 instance Show Action where
   show _ = "(Action)"
@@ -45,7 +47,7 @@ data ParameterDescription = PDesc {
     pName   :: String
   , pDesc   :: String
   , pValues :: [ParameterValue]
-  } deriving (Show)
+  } deriving (Show,Eq,Ord)
 
 data ParameterValue = StringParam String 
   | NumberParam Rational
@@ -172,6 +174,23 @@ execute b sc prm = do
               bRun b $ exec
               bTeardown b $ exec
               bAnalyze b $ exec
+
+executeExhaustive :: MonadIO m => Backend m -> ScenarioDescription -> m ()
+executeExhaustive b sc = mapM_ f $ paramSets $ sParams sc
+    where f prm = execute b sc prm
+
+executeMissing :: MonadIO m => Backend m -> ScenarioDescription -> m ()
+executeMissing b sc = do
+    execs <- load b sc
+    let exhaustive = S.fromList $ paramSets (sParams sc)
+    let existing = S.fromList $ map eParamSet execs
+    mapM_ f $ S.toList (exhaustive `S.difference` existing)
+    where f prm = execute b sc prm
+
+paramSets :: ParameterSpace -> [ParameterSet]
+paramSets ps = map M.fromList $ sequence possibleValues
+    where possibleValues = map f $ M.toList ps
+          f (k,desc) = map (pName desc,) $ pValues desc
 
 load :: MonadIO m => Backend m -> ScenarioDescription -> m [Execution]
 load b = bLoad b
