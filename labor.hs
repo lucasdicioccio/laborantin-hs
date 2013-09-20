@@ -5,8 +5,8 @@ module Labor where
  
 {- TODO 
  -
- - logging
  - exports
+ - error handling
  - state passing between phases (variables)
  - resource locking
  - distributed process backend 
@@ -27,6 +27,10 @@ import Data.List
 import Data.UUID
 import System.Directory
 import System.Random
+import System.Log.Logger
+import System.Log.Handler (close)
+import System.Log.Handler.Simple
+import System.Log.Handler.Log4jXML
 
 type ParameterSpace = M.Map String ParameterDescription
 type ParameterGenerator = ParameterDescription -> [ParameterValue]
@@ -107,9 +111,12 @@ instance FromJSON StoredExecution where
                                v .: "status"
     parseJSON _          = mzero
 
+type Finalizer m = Execution -> m ()
+
 data Backend m = Backend {
     bName      :: String
-  , bPrepareExecution :: ScenarioDescription -> ParameterSet -> m Execution
+  , bPrepareExecution  :: ScenarioDescription -> ParameterSet -> m (Execution,Finalizer m)
+  , bFinalizeExecution :: Execution -> Finalizer m -> m ()
   , bAdvertise :: Execution -> Step m ()
   , bSetup     :: Execution -> Step m ()
   , bRun       :: Execution -> Step m ()
@@ -117,7 +124,7 @@ data Backend m = Backend {
   , bAnalyze   :: Execution -> Step m ()
   , bResult    :: Execution -> String -> Step m (Result m)
   , bLoad      :: ScenarioDescription -> m [Execution]
-  , bLog       :: Execution -> Step m (Log m)
+  , bLogger    :: Execution -> Step m (LogHandler m)
 }
 
 data Result m = Result {
@@ -127,17 +134,25 @@ data Result m = Result {
   , pWrite  :: String -> Step m ()
 }
 
-newtype Log m = Log { lLog :: String -> Step m () }
+newtype LogHandler m = LogHandler { lLog :: String -> Step m () }
+
+loggerName :: Execution -> String
+loggerName exec = "laborantin:" ++ ePath exec
 
 defaultBackend :: Backend IO
-defaultBackend = Backend "default IO backend" prepare advertise setup run teardown analyze result load log
+defaultBackend = Backend "default IO backend" prepare finalize advertise setup run teardown analyze result load log
   where prepare sc params = do
                   uuid <- liftIO $ (randomIO :: IO (UUID))
-                  let rundir = intercalate "/" [".", sName sc, show uuid]
+                  let rundir = intercalate "/" [sName sc, show uuid]
                   let exec = Exec sc params rundir Prepared
                   liftIO $ createDirectoryIfMissing True rundir
                   liftIO $ BSL.writeFile (rundir ++ "/execution.json") (encode exec)
-                  return exec
+                  updateGlobalLogger (loggerName exec) (setLevel DEBUG)
+                  h1 <- fileHandler (rundir ++ "/execution-log.txt") DEBUG
+                  h2 <- log4jFileHandler (rundir ++ "/execution-log.xml") DEBUG
+                  forM_ [h1,h2] (updateGlobalLogger (loggerName exec) . addHandler)
+                  return (exec, \_ -> forM_ [h1,h2] close)
+        finalize  exec finalizer = finalizer exec
         advertise exec    = do
                   let lines = unlines $ map ($ exec) [show. sName . eScenario, show . eParamSet, ePath]
                   liftIO $ putStrLn lines
@@ -168,15 +183,16 @@ defaultResult exec name = Result path read append write
         write dat   = liftIO $ writeFile path dat
         path        = intercalate "/" [ePath exec, name]
 
-defaultLog :: Execution -> Log IO
-defaultLog exec = Log logF
-    where logF msg = liftIO $ print (path ++ " " ++ msg)
+defaultLog :: Execution -> LogHandler IO
+defaultLog exec = LogHandler logF
+    where logF msg = liftIO $ debugM (loggerName exec) msg
           path = (ePath exec) ++ "/execution.log"
 
 execute :: MonadIO m => Backend m -> ScenarioDescription -> ParameterSet -> m ()
 execute b sc prm = do
-  exec <- bPrepareExecution b sc prm 
+  (exec,final) <- bPrepareExecution b sc prm 
   runReaderT (go exec) (b, exec)
+  final exec
   where go exec = do 
               bAdvertise b $ exec
               bSetup b $ exec
@@ -265,6 +281,9 @@ result name = do
   (b,r) <- ask
   (bResult b) r name
 
+logger :: Monad m => Step m (LogHandler m)
+logger = ask >>= uncurry bLogger
+
 writeResult :: Monad m => String -> String -> Step m ()
 writeResult name dat = do
   result name >>= (flip pWrite) dat
@@ -272,6 +291,9 @@ writeResult name dat = do
 appendResult :: Monad m => String -> String -> Step m ()
 appendResult name dat = do
   result name >>= (flip pAppend) dat
+
+dbg :: Monad m => String -> Step m ()
+dbg msg = logger >>= (flip lLog) msg
 
 {- 
  - Example
@@ -288,10 +310,11 @@ ping = scenario "ping" $ do
     values $ [str "example.com", str "probecraft.net"]
   parameter "packet size" $ do
     describe "packet size in bytes"
-    values $ [num 50, num 1500]
+    values $ [num 50, num 1500] 
   setup $ do
+      dbg "setting up scenario"
       writeResult "foobar" "bla"
-      lift $ print "setup action"
-  teardown $ (lift $ print "teardown action")
-  run $ (lift $ print "run action")
-  analyze $ (lift $ print "analyze action")
+      dbg "setup action"
+  run $ dbg "run action"
+  teardown $ dbg "teardown action"
+  analyze $ dbg "analyze action"
