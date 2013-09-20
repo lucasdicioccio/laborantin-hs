@@ -117,6 +117,7 @@ data Backend m = Backend {
   , bAnalyze   :: Execution -> Step m ()
   , bResult    :: Execution -> String -> Step m (Result m)
   , bLoad      :: ScenarioDescription -> m [Execution]
+  , bLog       :: Execution -> Step m (Log m)
 }
 
 data Result m = Result {
@@ -126,8 +127,10 @@ data Result m = Result {
   , pWrite  :: String -> Step m ()
 }
 
+newtype Log m = Log { lLog :: String -> Step m () }
+
 defaultBackend :: Backend IO
-defaultBackend = Backend "default IO backend" prepare advertise setup run teardown analyze result load
+defaultBackend = Backend "default IO backend" prepare advertise setup run teardown analyze result load log
   where prepare sc params = do
                   uuid <- liftIO $ (randomIO :: IO (UUID))
                   let rundir = intercalate "/" [".", sName sc, show uuid]
@@ -156,6 +159,7 @@ defaultBackend = Backend "default IO backend" prepare advertise setup run teardo
                     maybe (error $ "decoding: " ++ path) return exec'
 
                     where forStored (Stored params path status) = Exec sc params path status
+        log exec          = return $ defaultLog exec
 
 defaultResult :: Execution -> String -> Result IO
 defaultResult exec name = Result path read append write
@@ -163,6 +167,11 @@ defaultResult exec name = Result path read append write
         append dat  = liftIO $ appendFile path dat
         write dat   = liftIO $ writeFile path dat
         path        = intercalate "/" [ePath exec, name]
+
+defaultLog :: Execution -> Log IO
+defaultLog exec = Log logF
+    where logF msg = liftIO $ print (path ++ " " ++ msg)
+          path = (ePath exec) ++ "/execution.log"
 
 execute :: MonadIO m => Backend m -> ScenarioDescription -> ParameterSet -> m ()
 execute b sc prm = do
