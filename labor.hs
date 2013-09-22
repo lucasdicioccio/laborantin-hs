@@ -1,5 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Labor where
  
@@ -7,7 +8,6 @@ module Labor where
  -
  - exports
  - error handling
- - state passing between phases (variables)
  - resource locking
  - distributed process backend 
  -
@@ -31,11 +31,14 @@ import System.Log.Logger
 import System.Log.Handler (close)
 import System.Log.Handler.Simple
 import System.Log.Handler.Log4jXML
+import Data.Dynamic
 
 type ParameterSpace = M.Map String ParameterDescription
 type ParameterGenerator = ParameterDescription -> [ParameterValue]
 type Step m a = ReaderT (Backend m,Execution) m a
-newtype Action = Action { unAction :: Step IO () }
+type DynEnv = M.Map String Dynamic
+type EnvIO = (StateT DynEnv IO)
+newtype Action = Action { unAction :: Step EnvIO () }
 
 instance Show Action where
   show _ = "(Action)"
@@ -138,9 +141,9 @@ newtype LogHandler m = LogHandler { lLog :: String -> Step m () }
 loggerName :: Execution -> String
 loggerName exec = "laborantin:" ++ ePath exec
 
-defaultBackend :: Backend IO
-defaultBackend = Backend "default IO backend" prepare finalize setup run teardown analyze result load log
-  where prepare sc params = do
+defaultBackend :: Backend EnvIO
+defaultBackend = Backend "default EnvIO backend" prepare finalize setup run teardown analyze result load log
+  where prepare sc params = lift $ do
                   uuid <- liftIO $ (randomIO :: IO (UUID))
                   let rundir = intercalate "/" [sName sc, show uuid]
                   let exec = Exec sc params rundir Running
@@ -151,7 +154,7 @@ defaultBackend = Backend "default IO backend" prepare finalize setup run teardow
                   h2 <- log4jFileHandler (rundir ++ "/execution-log.xml") DEBUG
                   forM_ [h1,h2] (updateGlobalLogger (loggerName exec) . addHandler)
                   liftIO . putStrLn $ advertise exec
-                  return (exec, \_ -> forM_ [h1,h2] close)
+                  return (exec, \_ -> lift $ forM_ [h1,h2] close)
                   where advertise exec = unlines $ map ($ exec) [show. sName . eScenario
                                                 , show . eParamSet
                                                 , ePath]
@@ -169,7 +172,7 @@ defaultBackend = Backend "default IO backend" prepare finalize setup run teardow
 
         result exec       = return . defaultResult exec
 
-        load sc           = do
+        load sc           = lift $ do
             dirs <- filter notDot <$> getDirectoryContents (sName sc)
             let paths = map ((sName sc ++ "/") ++) dirs
             mapM loadOne paths
@@ -181,14 +184,14 @@ defaultBackend = Backend "default IO backend" prepare finalize setup run teardow
                     where forStored (Stored params path status) = Exec sc params path status
         log exec          = return $ defaultLog exec
 
-defaultResult :: Execution -> String -> Result IO
+defaultResult :: Execution -> String -> Result EnvIO
 defaultResult exec name = Result path read append write
   where read        = liftIO $ readFile path
         append dat  = liftIO $ appendFile path dat
         write dat   = liftIO $ writeFile path dat
         path        = intercalate "/" [ePath exec, name]
 
-defaultLog :: Execution -> LogHandler IO
+defaultLog :: Execution -> LogHandler EnvIO
 defaultLog exec = LogHandler logF
     where logF msg = liftIO $ debugM (loggerName exec) msg
           path = (ePath exec) ++ "/execution.log"
@@ -264,19 +267,19 @@ num = NumberParam . fromInteger
 arr :: [ParameterValue] -> ParameterValue
 arr = Array
 
-setup :: Step IO () -> State ScenarioDescription ()
+setup :: Step EnvIO () -> State ScenarioDescription ()
 setup = appendHook "setup"
 
-run :: Step IO () -> State ScenarioDescription ()
+run :: Step EnvIO () -> State ScenarioDescription ()
 run = appendHook "run"
 
-teardown :: Step IO () -> State ScenarioDescription ()
+teardown :: Step EnvIO () -> State ScenarioDescription ()
 teardown  = appendHook "teardown"
 
-analyze :: Step IO () -> State ScenarioDescription ()
+analyze :: Step EnvIO () -> State ScenarioDescription ()
 analyze = appendHook "analyze"
 
-appendHook :: String -> Step IO () -> State ScenarioDescription ()
+appendHook :: String -> Step EnvIO () -> State ScenarioDescription ()
 appendHook name f = modify (addHook name $ Action f)
   where addHook k v sc0 = sc0 { sHooks = M.insert k v (sHooks sc0) }
 
@@ -301,6 +304,14 @@ dbg msg = logger >>= (flip lLog) msg
 
 param :: Monad m => String -> Step m (Maybe ParameterValue)
 param key = ask >>= return . M.lookup key . eParamSet . snd
+
+getVar :: (Functor m, MonadState DynEnv m) => String -> m (Maybe Dynamic)
+getVar k = M.lookup k <$> get
+
+setVar :: (MonadState DynEnv m) => String -> Dynamic -> m ()
+setVar k v = modify (M.insert k v)
+  
+  
 {- 
  - Example
  -}
@@ -318,10 +329,14 @@ ping = scenario "ping" $ do
     describe "packet size in bytes"
     values $ [num 50, num 1500] 
   setup $ do
+      setVar "hello" $ toDyn ("world"::String)
       dbg "setting up scenario"
       writeResult "foobar" "bla"
       dbg "setup action"
   run $ do
+    (Just str) <- getVar "hello"
+    let str' = fromDyn str (""::String)
+    liftIO . print . ("hello "++) $ str'
     (StringParam srv) <- maybe (error "no param") id <$> param "destination"
     dbg $ "sending ping to " ++ srv
   teardown $ dbg "teardown action"
