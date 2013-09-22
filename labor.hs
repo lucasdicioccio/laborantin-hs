@@ -6,10 +6,7 @@ module Labor where
  
 {- TODO 
  -
- - exports
  - error handling
- - resource locking
- - distributed process backend 
  -
  -}
 
