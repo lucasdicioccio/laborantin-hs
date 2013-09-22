@@ -1,6 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Labor where
  
@@ -307,8 +308,13 @@ getVar k = M.lookup k <$> get
 
 setVar :: (MonadState DynEnv m) => String -> Dynamic -> m ()
 setVar k v = modify (M.insert k v)
-  
-  
+
+setVar' :: (Typeable v, MonadState DynEnv m) => String -> v -> m ()
+setVar' k v = setVar k (toDyn v)
+
+getVar' :: (Typeable v, Functor m, MonadState DynEnv m) => String -> m (Maybe v)
+getVar' k = maybe Nothing fromDynamic <$> getVar k
+
 {- 
  - Example
  -}
@@ -326,14 +332,13 @@ ping = scenario "ping" $ do
     describe "packet size in bytes"
     values $ [num 50, num 1500] 
   setup $ do
-      setVar "hello" $ toDyn ("world"::String)
+      setVar' "hello" ("world"::String)
       dbg "setting up scenario"
       writeResult "foobar" "bla"
       dbg "setup action"
   run $ do
-    (Just str) <- getVar "hello"
-    let str' = fromDyn str (""::String)
-    liftIO . print . ("hello "++) $ str'
+    (Just str :: Maybe String) <- getVar' "hello"
+    liftIO . print . ("hello "++) $ str
     (StringParam srv) <- maybe (error "no param") id <$> param "destination"
     dbg $ "sending ping to " ++ srv
   teardown $ dbg "teardown action"
