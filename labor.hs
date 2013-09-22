@@ -60,7 +60,7 @@ data ParameterValue = StringParam String
 
 type ParameterSet = M.Map String ParameterValue
 
-data ExecutionStatus = Prepared | Running | Success | Failure | Loaded
+data ExecutionStatus = Running | Success | Failure 
   deriving (Show,Read)
 
 data Execution = Exec {
@@ -143,7 +143,7 @@ defaultBackend = Backend "default IO backend" prepare finalize setup run teardow
   where prepare sc params = do
                   uuid <- liftIO $ (randomIO :: IO (UUID))
                   let rundir = intercalate "/" [sName sc, show uuid]
-                  let exec = Exec sc params rundir Prepared
+                  let exec = Exec sc params rundir Running
                   liftIO $ createDirectoryIfMissing True rundir
                   liftIO $ BSL.writeFile (rundir ++ "/execution.json") (encode exec)
                   updateGlobalLogger (loggerName exec) (setLevel DEBUG)
@@ -155,7 +155,12 @@ defaultBackend = Backend "default IO backend" prepare finalize setup run teardow
                   where advertise exec = unlines $ map ($ exec) [show. sName . eScenario
                                                 , show . eParamSet
                                                 , ePath]
-        finalize  exec finalizer = finalizer exec
+        finalize  exec finalizer = do
+                            finalizer exec
+                            liftIO . putStrLn $ "done"
+                            liftIO $ BSL.writeFile (rundir ++ "/execution.json") (encode exec')
+                            where exec' = exec {eStatus = Success} 
+                                  rundir = ePath exec
         setup             = callHooks "setup" . eScenario
         run               = callHooks "run" . eScenario
         teardown          = callHooks "teardown" . eScenario
@@ -192,7 +197,7 @@ execute :: MonadIO m => Backend m -> ScenarioDescription -> ParameterSet -> m ()
 execute b sc prm = do
   (exec,final) <- bPrepareExecution b sc prm 
   runReaderT (go exec) (b, exec)
-  final exec
+  (bFinalizeExecution b) exec final
   where go exec = do 
               bSetup b $ exec
               bRun b $ exec
