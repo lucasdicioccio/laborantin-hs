@@ -299,6 +299,8 @@ appendResult name dat = do
 dbg :: Monad m => String -> Step m ()
 dbg msg = logger >>= (flip lLog) msg
 
+param :: Monad m => String -> Step m (Maybe ParameterValue)
+param key = ask >>= return . M.lookup key . eParamSet . snd
 {- 
  - Example
  -}
@@ -319,6 +321,8 @@ ping = scenario "ping" $ do
       dbg "setting up scenario"
       writeResult "foobar" "bla"
       dbg "setup action"
-  run $ dbg "run action"
+  run $ do
+    (StringParam srv) <- maybe (error "no param") id <$> param "destination"
+    dbg $ "sending ping to " ++ srv
   teardown $ dbg "teardown action"
   analyze $ dbg "analyze action"
