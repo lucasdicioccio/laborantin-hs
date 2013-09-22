@@ -33,19 +33,19 @@ import Data.Dynamic
 
 type ParameterSpace = M.Map String ParameterDescription
 type ParameterGenerator = ParameterDescription -> [ParameterValue]
-type Step m a = ReaderT (Backend m,Execution) m a
+type Step m a = ReaderT (Backend m,Execution m) m a
 type DynEnv = M.Map String Dynamic
-type EnvIO = (StateT DynEnv IO)
-newtype Action = Action { unAction :: Step EnvIO () }
+type EnvIO = StateT DynEnv IO
+newtype Action m = Action { unAction :: Step m () }
 
-instance Show Action where
+instance Show (Action m) where
   show _ = "(Action)"
 
-data ScenarioDescription = SDesc {
+data ScenarioDescription m = SDesc {
     sName   :: String
   , sDesc   :: String
   , sParams :: ParameterSpace
-  , sHooks  :: M.Map String Action
+  , sHooks  :: M.Map String (Action m)
   } deriving (Show)
 
 data ParameterDescription = PDesc {
@@ -64,8 +64,8 @@ type ParameterSet = M.Map String ParameterValue
 data ExecutionStatus = Running | Success | Failure 
   deriving (Show,Read)
 
-data Execution = Exec {
-    eScenario :: ScenarioDescription
+data Execution m = Exec {
+    eScenario :: ScenarioDescription m
   , eParamSet :: ParameterSet
   , ePath     :: String
   , eStatus   :: ExecutionStatus
@@ -85,7 +85,7 @@ instance ToJSON ParameterValue where
 instance ToJSON ExecutionStatus where
     toJSON = toJSON . show
 
-instance ToJSON Execution where
+instance ToJSON (Execution a) where
     toJSON (Exec sc params path status) = object    [ "scenario-name" .= sName sc
                                                     , "params" .= params
                                                     , "path" .= path
@@ -112,19 +112,19 @@ instance FromJSON StoredExecution where
                                v .: "status"
     parseJSON _          = mzero
 
-type Finalizer m = Execution -> m ()
+type Finalizer m = Execution m -> m ()
 
 data Backend m = Backend {
     bName      :: String
-  , bPrepareExecution  :: ScenarioDescription -> ParameterSet -> m (Execution,Finalizer m)
-  , bFinalizeExecution :: Execution -> Finalizer m -> m ()
-  , bSetup     :: Execution -> Step m ()
-  , bRun       :: Execution -> Step m ()
-  , bTeardown  :: Execution -> Step m ()
-  , bAnalyze   :: Execution -> Step m ()
-  , bResult    :: Execution -> String -> Step m (Result m)
-  , bLoad      :: ScenarioDescription -> m [Execution]
-  , bLogger    :: Execution -> Step m (LogHandler m)
+  , bPrepareExecution  :: ScenarioDescription m -> ParameterSet -> m (Execution m,Finalizer m)
+  , bFinalizeExecution :: Execution m -> Finalizer m -> m ()
+  , bSetup     :: Execution m -> Step m ()
+  , bRun       :: Execution m -> Step m ()
+  , bTeardown  :: Execution m -> Step m ()
+  , bAnalyze   :: Execution m -> Step m ()
+  , bResult    :: Execution m -> String -> Step m (Result m)
+  , bLoad      :: ScenarioDescription m -> m [Execution m]
+  , bLogger    :: Execution m -> Step m (LogHandler m)
 }
 
 data Result m = Result {
@@ -136,7 +136,7 @@ data Result m = Result {
 
 newtype LogHandler m = LogHandler { lLog :: String -> Step m () }
 
-loggerName :: Execution -> String
+loggerName :: Execution m -> String
 loggerName exec = "laborantin:" ++ ePath exec
 
 defaultBackend :: Backend EnvIO
@@ -182,47 +182,52 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
                     where forStored (Stored params path status) = Exec sc params path status
         log exec          = return $ defaultLog exec
 
-defaultResult :: Execution -> String -> Result EnvIO
+defaultResult :: Execution m -> String -> Result EnvIO
 defaultResult exec name = Result path read append write
   where read        = liftIO $ readFile path
         append dat  = liftIO $ appendFile path dat
         write dat   = liftIO $ writeFile path dat
         path        = intercalate "/" [ePath exec, name]
 
-defaultLog :: Execution -> LogHandler EnvIO
+defaultLog :: Execution m -> LogHandler EnvIO
 defaultLog exec = LogHandler logF
     where logF msg = liftIO $ debugM (loggerName exec) msg
           path = (ePath exec) ++ "/execution.log"
 
-execute :: MonadIO m => Backend m -> ScenarioDescription -> ParameterSet -> m ()
-execute b sc prm = do
-  (exec,final) <- bPrepareExecution b sc prm 
-  runReaderT (go exec) (b, exec)
-  (bFinalizeExecution b) exec final
-  where go exec = do 
-              bSetup b $ exec
-              bRun b $ exec
-              bTeardown b $ exec
-              bAnalyze b $ exec
+execute b sc prm = let f = execute' b sc prm in
+  void $ runStateT f M.empty
+  
 
-executeExhaustive :: MonadIO m => Backend m -> ScenarioDescription -> m ()
+execute' :: MonadIO m => Backend m -> ScenarioDescription m -> ParameterSet -> m ()
+execute' b sc prm = execution
+  where execution = do
+            (exec,final) <- bPrepareExecution b sc prm 
+            runReaderT (go exec) (b, exec)
+            (bFinalizeExecution b) exec final
+            where go exec = do 
+                        bSetup b $ exec
+                        bRun b $ exec
+                        bTeardown b $ exec
+                        bAnalyze b $ exec
+
+executeExhaustive :: MonadIO m => Backend m -> ScenarioDescription m -> m ()
 executeExhaustive b sc = mapM_ f $ paramSets $ sParams sc
-    where f prm = execute b sc prm
+    where f prm = execute' b sc prm
 
-executeMissing :: MonadIO m => Backend m -> ScenarioDescription -> m ()
+executeMissing :: MonadIO m => Backend m -> ScenarioDescription m -> m ()
 executeMissing b sc = do
     execs <- load b sc
     let exhaustive = S.fromList $ paramSets (sParams sc)
     let existing = S.fromList $ map eParamSet execs
     mapM_ f $ S.toList (exhaustive `S.difference` existing)
-    where f prm = execute b sc prm
+    where f prm = execute' b sc prm
 
 paramSets :: ParameterSpace -> [ParameterSet]
 paramSets ps = map M.fromList $ sequence possibleValues
     where possibleValues = map f $ M.toList ps
           f (k,desc) = map (pName desc,) $ pValues desc
 
-load :: MonadIO m => Backend m -> ScenarioDescription -> m [Execution]
+load :: MonadIO m => Backend m -> ScenarioDescription m -> m [Execution m]
 load b = bLoad b
 
 {- 
@@ -232,20 +237,20 @@ load b = bLoad b
 class Describable a where
   changeDescription :: String -> a -> a
 
-instance Describable ScenarioDescription where
+instance Describable (ScenarioDescription a) where
   changeDescription d sc = sc { sDesc = d }
 
 instance Describable ParameterDescription where
   changeDescription d pa = pa { pDesc = d }
 
-scenario :: String -> (State ScenarioDescription ()) -> ScenarioDescription
+scenario :: String -> (State (ScenarioDescription m) ()) -> ScenarioDescription m
 scenario name f = snd $ runState f sc0
   where sc0 = SDesc name "" M.empty M.empty
 
 describe :: Describable a => String -> State a ()
 describe desc = modify (changeDescription desc)
 
-parameter :: String -> (State ParameterDescription ()) -> State ScenarioDescription ()
+parameter :: String -> (State ParameterDescription ()) -> State (ScenarioDescription m) ()
 parameter name f = modify (addParam name param)
   where addParam k v sc0 = sc0 { sParams = M.insert k v (sParams sc0) }
         param = snd $ runState f param0
@@ -265,19 +270,19 @@ num = NumberParam . fromInteger
 arr :: [ParameterValue] -> ParameterValue
 arr = Array
 
-setup :: Step EnvIO () -> State ScenarioDescription ()
+setup :: Step m () -> State (ScenarioDescription m) ()
 setup = appendHook "setup"
 
-run :: Step EnvIO () -> State ScenarioDescription ()
+run :: Step m () -> State (ScenarioDescription m) ()
 run = appendHook "run"
 
-teardown :: Step EnvIO () -> State ScenarioDescription ()
+teardown :: Step m () -> State (ScenarioDescription m) ()
 teardown  = appendHook "teardown"
 
-analyze :: Step EnvIO () -> State ScenarioDescription ()
+analyze :: Step m () -> State (ScenarioDescription m) ()
 analyze = appendHook "analyze"
 
-appendHook :: String -> Step EnvIO () -> State ScenarioDescription ()
+appendHook :: String -> Step m () -> State (ScenarioDescription m) ()
 appendHook name f = modify (addHook name $ Action f)
   where addHook k v sc0 = sc0 { sHooks = M.insert k v (sHooks sc0) }
 
@@ -322,7 +327,7 @@ getVar' k = maybe Nothing fromDynamic <$> getVar k
 vals :: ParameterSet
 vals = M.fromList [("destination",str "probecraft.net"),("packet size",num 32)]
 
-ping :: ScenarioDescription
+ping :: ScenarioDescription EnvIO
 ping = scenario "ping" $ do
   describe "ping to a remote server"
   parameter "destination" $ do
