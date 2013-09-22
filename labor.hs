@@ -117,7 +117,6 @@ data Backend m = Backend {
     bName      :: String
   , bPrepareExecution  :: ScenarioDescription -> ParameterSet -> m (Execution,Finalizer m)
   , bFinalizeExecution :: Execution -> Finalizer m -> m ()
-  , bAdvertise :: Execution -> Step m ()
   , bSetup     :: Execution -> Step m ()
   , bRun       :: Execution -> Step m ()
   , bTeardown  :: Execution -> Step m ()
@@ -140,7 +139,7 @@ loggerName :: Execution -> String
 loggerName exec = "laborantin:" ++ ePath exec
 
 defaultBackend :: Backend IO
-defaultBackend = Backend "default IO backend" prepare finalize advertise setup run teardown analyze result load log
+defaultBackend = Backend "default IO backend" prepare finalize setup run teardown analyze result load log
   where prepare sc params = do
                   uuid <- liftIO $ (randomIO :: IO (UUID))
                   let rundir = intercalate "/" [sName sc, show uuid]
@@ -151,11 +150,12 @@ defaultBackend = Backend "default IO backend" prepare finalize advertise setup r
                   h1 <- fileHandler (rundir ++ "/execution-log.txt") DEBUG
                   h2 <- log4jFileHandler (rundir ++ "/execution-log.xml") DEBUG
                   forM_ [h1,h2] (updateGlobalLogger (loggerName exec) . addHandler)
+                  liftIO . putStrLn $ advertise exec
                   return (exec, \_ -> forM_ [h1,h2] close)
+                  where advertise exec = unlines $ map ($ exec) [show. sName . eScenario
+                                                , show . eParamSet
+                                                , ePath]
         finalize  exec finalizer = finalizer exec
-        advertise exec    = do
-                  let lines = unlines $ map ($ exec) [show. sName . eScenario, show . eParamSet, ePath]
-                  liftIO $ putStrLn lines
         setup             = callHooks "setup" . eScenario
         run               = callHooks "run" . eScenario
         teardown          = callHooks "teardown" . eScenario
@@ -194,7 +194,6 @@ execute b sc prm = do
   runReaderT (go exec) (b, exec)
   final exec
   where go exec = do 
-              bAdvertise b $ exec
               bSetup b $ exec
               bRun b $ exec
               bTeardown b $ exec
