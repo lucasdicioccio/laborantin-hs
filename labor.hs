@@ -5,12 +5,6 @@
 
 module Labor where
  
-{- TODO 
- -
- - error handling
- -
- -}
-
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -18,6 +12,8 @@ import qualified Data.ByteString.Lazy as BSL
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State
 import Control.Monad.Reader
+import Control.Monad.Error
+import Control.Exception
 import Data.Aeson (decode,encode,FromJSON,parseJSON,(.:),ToJSON,toJSON,(.=),object)
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
@@ -33,9 +29,17 @@ import Data.Dynamic
 
 type ParameterSpace = M.Map String ParameterDescription
 type ParameterGenerator = ParameterDescription -> [ParameterValue]
-type Step m a = ReaderT (Backend m,Execution m) m a
+data ExecutionError = ExecutionError String
+    deriving (Show)
+instance Error ExecutionError where
+  noMsg    = ExecutionError "A String Error!"
+  strMsg s = ExecutionError s
+type Step m a = (ReaderT (Backend m,Execution m) m) a
 type DynEnv = M.Map String Dynamic
-type EnvIO = StateT DynEnv IO
+type EnvIO = ErrorT String (StateT DynEnv IO)
+runEnvIO :: EnvIO () -> IO (Either String (), DynEnv)
+runEnvIO m = runStateT (runErrorT m) M.empty
+
 newtype Action m = Action { unAction :: Step m () }
 
 instance Show (Action m) where
@@ -141,18 +145,21 @@ loggerName exec = "laborantin:" ++ ePath exec
 
 defaultBackend :: Backend EnvIO
 defaultBackend = Backend "default EnvIO backend" prepare finalize setup run teardown analyze result load log
-  where prepare sc params = lift $ do
+  where prepare :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
+        prepare sc params = do
                   uuid <- liftIO $ (randomIO :: IO (UUID))
                   let rundir = intercalate "/" [sName sc, show uuid]
                   let exec = Exec sc params rundir Running
-                  liftIO $ createDirectoryIfMissing True rundir
-                  liftIO $ BSL.writeFile (rundir ++ "/execution.json") (encode exec)
-                  updateGlobalLogger (loggerName exec) (setLevel DEBUG)
-                  h1 <- fileHandler (rundir ++ "/execution-log.txt") DEBUG
-                  h2 <- log4jFileHandler (rundir ++ "/execution-log.xml") DEBUG
-                  forM_ [h1,h2] (updateGlobalLogger (loggerName exec) . addHandler)
-                  liftIO . putStrLn $ advertise exec
-                  return (exec, \_ -> lift $ forM_ [h1,h2] close)
+                  handles <- liftIO $ do
+                    createDirectoryIfMissing True rundir
+                    BSL.writeFile (rundir ++ "/execution.json") (encode exec)
+                    updateGlobalLogger (loggerName exec) (setLevel DEBUG)
+                    h1 <- fileHandler (rundir ++ "/execution-log.txt") DEBUG
+                    h2 <- log4jFileHandler (rundir ++ "/execution-log.xml") DEBUG
+                    forM_ [h1,h2] (updateGlobalLogger (loggerName exec) . addHandler)
+                    putStrLn $ advertise exec
+                    return [h1,h2]
+                  return (exec, \_ -> liftIO $ forM_ handles close)
                   where advertise exec = unlines $ map ($ exec) [show. sName . eScenario
                                                 , show . eParamSet
                                                 , ePath]
@@ -170,7 +177,8 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
 
         result exec       = return . defaultResult exec
 
-        load sc           = lift $ do
+        load :: ScenarioDescription EnvIO -> EnvIO [Execution EnvIO]
+        load sc           = liftIO $do
             dirs <- filter notDot <$> getDirectoryContents (sName sc)
             let paths = map ((sName sc ++ "/") ++) dirs
             mapM loadOne paths
@@ -194,11 +202,7 @@ defaultLog exec = LogHandler logF
     where logF msg = liftIO $ debugM (loggerName exec) msg
           path = (ePath exec) ++ "/execution.log"
 
-execute b sc prm = let f = execute' b sc prm in
-  void $ runStateT f M.empty
-  
-
-execute' :: MonadIO m => Backend m -> ScenarioDescription m -> ParameterSet -> m ()
+execute' :: (MonadIO m) => Backend m -> ScenarioDescription m -> ParameterSet -> m ()
 execute' b sc prm = execution
   where execution = do
             (exec,final) <- bPrepareExecution b sc prm 
@@ -209,12 +213,13 @@ execute' b sc prm = execution
                         bRun b $ exec
                         bTeardown b $ exec
                         bAnalyze b $ exec
+                  recover exec err = undefined
 
-executeExhaustive :: MonadIO m => Backend m -> ScenarioDescription m -> m ()
+executeExhaustive :: (MonadIO m) => Backend m -> ScenarioDescription m -> m ()
 executeExhaustive b sc = mapM_ f $ paramSets $ sParams sc
     where f prm = execute' b sc prm
 
-executeMissing :: MonadIO m => Backend m -> ScenarioDescription m -> m ()
+executeMissing :: (MonadIO m) => Backend m -> ScenarioDescription m -> m ()
 executeMissing b sc = do
     execs <- load b sc
     let exhaustive = S.fromList $ paramSets (sParams sc)
@@ -227,7 +232,7 @@ paramSets ps = map M.fromList $ sequence possibleValues
     where possibleValues = map f $ M.toList ps
           f (k,desc) = map (pName desc,) $ pValues desc
 
-load :: MonadIO m => Backend m -> ScenarioDescription m -> m [Execution m]
+load :: (MonadIO m) => Backend m -> ScenarioDescription m -> m [Execution m]
 load b = bLoad b
 
 {- 
@@ -344,7 +349,9 @@ ping = scenario "ping" $ do
   run $ do
     (Just str :: Maybe String) <- getVar' "hello"
     liftIO . print . ("hello "++) $ str
-    (StringParam srv) <- maybe (error "no param") id <$> param "destination"
+    (StringParam srv) <- maybe (throwError "no param") return =<< param "destination"
     dbg $ "sending ping to " ++ srv
   teardown $ dbg "teardown action"
   analyze $ dbg "analyze action"
+
+
