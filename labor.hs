@@ -36,8 +36,8 @@ instance Error ExecutionError where
   strMsg s = ExecutionError s
 type Step m a = (ReaderT (Backend m,Execution m) m) a
 type DynEnv = M.Map String Dynamic
-type EnvIO = ErrorT String (StateT DynEnv IO)
-runEnvIO :: EnvIO () -> IO (Either String (), DynEnv)
+type EnvIO = ErrorT ExecutionError (StateT DynEnv IO)
+runEnvIO :: EnvIO () -> IO (Either ExecutionError (), DynEnv)
 runEnvIO m = runStateT (runErrorT m) M.empty
 
 newtype Action m = Action { unAction :: Step m () }
@@ -349,7 +349,7 @@ ping = scenario "ping" $ do
   run $ do
     (Just str :: Maybe String) <- getVar' "hello"
     liftIO . print . ("hello "++) $ str
-    (StringParam srv) <- maybe (throwError "no param") return =<< param "destination"
+    (StringParam srv) <- maybe (throwError $ ExecutionError "no param") return =<< param "destination"
     dbg $ "sending ping to " ++ srv
   teardown $ dbg "teardown action"
   analyze $ dbg "analyze action"
