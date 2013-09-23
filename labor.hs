@@ -213,7 +213,6 @@ execute' b sc prm = execution
                         bRun b $ exec
                         bTeardown b $ exec
                         bAnalyze b $ exec
-                  recover exec err = undefined
 
 executeExhaustive :: (MonadIO m) => Backend m -> ScenarioDescription m -> m ()
 executeExhaustive b sc = mapM_ f $ paramSets $ sParams sc
