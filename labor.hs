@@ -127,6 +127,7 @@ data Backend m = Backend {
   , bRun       :: Execution m -> Step m ()
   , bTeardown  :: Execution m -> Step m ()
   , bAnalyze   :: Execution m -> Step m ()
+  , bRecover   :: Execution m -> Step m ()
   , bResult    :: Execution m -> String -> Step m (Result m)
   , bLoad      :: ScenarioDescription m -> m [Execution m]
   , bLogger    :: Execution m -> Step m (LogHandler m)
@@ -145,7 +146,7 @@ loggerName :: Execution m -> String
 loggerName exec = "laborantin:" ++ ePath exec
 
 defaultBackend :: Backend EnvIO
-defaultBackend = Backend "default EnvIO backend" prepare finalize setup run teardown analyze result load log
+defaultBackend = Backend "default EnvIO backend" prepare finalize setup run teardown analyze recover result load log
   where prepare :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
         prepare sc params = do
                   uuid <- liftIO $ (randomIO :: IO (UUID))
@@ -167,15 +168,14 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
         finalize  exec finalizer = do
                             finalizer exec
                             liftIO . putStrLn $ "done"
-                            liftIO $ BSL.writeFile (rundir ++ "/execution.json") (encode exec')
-                            where exec' = exec {eStatus = Success} 
-                                  rundir = ePath exec
+                            liftIO $ BSL.writeFile (rundir ++ "/execution.json") (encode exec)
+                            where rundir = ePath exec
         setup             = callHooks "setup" . eScenario
         run               = callHooks "run" . eScenario
         teardown          = callHooks "teardown" . eScenario
         analyze           = callHooks "analyze" . eScenario
+        recover           = callHooks "recover" . eScenario
         callHooks key sc  = maybe (error $ "no such hook: " ++ key) unAction (M.lookup key $ sHooks sc)
-
         result exec       = return . defaultResult exec
 
         load :: ScenarioDescription EnvIO -> EnvIO [Execution EnvIO]
@@ -207,13 +207,15 @@ execute' :: (MonadIO m) => Backend m -> ScenarioDescription m -> ParameterSet ->
 execute' b sc prm = execution
   where execution = do
             (exec,final) <- bPrepareExecution b sc prm 
-            runReaderT (runErrorT (go exec)) (b, exec)
-            (bFinalizeExecution b) exec final
+            status <- runReaderT (runErrorT (go exec `catchError` recover exec)) (b, exec)
+            let exec' = either (\_ -> exec {eStatus = Failure}) (\_ -> exec {eStatus = Success}) status
+            (bFinalizeExecution b) exec' final
             where go exec = do 
                         bSetup b $ exec
                         bRun b $ exec
                         bTeardown b $ exec
                         bAnalyze b $ exec
+                  recover exec err = bRecover b exec >> throwError err
 
 executeExhaustive :: (MonadIO m) => Backend m -> ScenarioDescription m -> m ()
 executeExhaustive b sc = mapM_ f $ paramSets $ sParams sc
@@ -284,6 +286,9 @@ run = appendHook "run"
 teardown :: Step m () -> State (ScenarioDescription m) ()
 teardown  = appendHook "teardown"
 
+recover :: Step m () -> State (ScenarioDescription m) ()
+recover  = appendHook "recover"
+
 analyze :: Step m () -> State (ScenarioDescription m) ()
 analyze = appendHook "analyze"
 
@@ -352,4 +357,5 @@ ping = scenario "ping" $ do
     (StringParam srv) <- maybe (throwError $ ExecutionError "no param") return =<< param "destination"
     dbg $ "sending ping to " ++ srv
   teardown $ dbg "teardown action"
+  recover $ dbg "recovering from error"
   analyze $ dbg "analyze action"
