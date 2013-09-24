@@ -34,11 +34,12 @@ data ExecutionError = ExecutionError String
 instance Error ExecutionError where
   noMsg    = ExecutionError "A String Error!"
   strMsg s = ExecutionError s
-type Step m a = (ReaderT (Backend m,Execution m) m) a
+type Step m a = ErrorT ExecutionError (ReaderT (Backend m,Execution m) m) a
 type DynEnv = M.Map String Dynamic
-type EnvIO = ErrorT ExecutionError (StateT DynEnv IO)
-runEnvIO :: EnvIO () -> IO (Either ExecutionError (), DynEnv)
-runEnvIO m = runStateT (runErrorT m) M.empty
+type EnvIO = (StateT DynEnv IO)
+
+runEnvIO :: EnvIO () -> IO ((), DynEnv)
+runEnvIO m = runStateT m M.empty
 
 newtype Action m = Action { unAction :: Step m () }
 
@@ -206,7 +207,7 @@ execute' :: (MonadIO m) => Backend m -> ScenarioDescription m -> ParameterSet ->
 execute' b sc prm = execution
   where execution = do
             (exec,final) <- bPrepareExecution b sc prm 
-            runReaderT (go exec) (b, exec)
+            runReaderT (runErrorT (go exec)) (b, exec)
             (bFinalizeExecution b) exec final
             where go exec = do 
                         bSetup b $ exec
@@ -312,17 +313,17 @@ dbg msg = logger >>= (flip lLog) msg
 param :: Monad m => String -> Step m (Maybe ParameterValue)
 param key = ask >>= return . M.lookup key . eParamSet . snd
 
-getVar :: (Functor m, MonadState DynEnv m) => String -> m (Maybe Dynamic)
-getVar k = M.lookup k <$> get
+getVar' :: (Functor m, MonadState DynEnv m) => String -> m (Maybe Dynamic)
+getVar' k = M.lookup k <$> get
 
-setVar :: (MonadState DynEnv m) => String -> Dynamic -> m ()
-setVar k v = modify (M.insert k v)
+setVar' :: (MonadState DynEnv m) => String -> Dynamic -> m ()
+setVar' k v = modify (M.insert k v)
 
-setVar' :: (Typeable v, MonadState DynEnv m) => String -> v -> m ()
-setVar' k v = setVar k (toDyn v)
+setVar :: (Typeable v, MonadState DynEnv m) => String -> v -> m ()
+setVar k v = setVar' k (toDyn v)
 
-getVar' :: (Typeable v, Functor m, MonadState DynEnv m) => String -> m (Maybe v)
-getVar' k = maybe Nothing fromDynamic <$> getVar k
+getVar :: (Typeable v, Functor m, MonadState DynEnv m) => String -> m (Maybe v)
+getVar k = maybe Nothing fromDynamic <$> getVar' k
 
 {- 
  - Example
@@ -341,16 +342,14 @@ ping = scenario "ping" $ do
     describe "packet size in bytes"
     values $ [num 50, num 1500] 
   setup $ do
-      setVar' "hello" ("world"::String)
+      setVar "hello" ("world"::String)
       dbg "setting up scenario"
       writeResult "foobar" "bla"
       dbg "setup action"
   run $ do
-    (Just str :: Maybe String) <- getVar' "hello"
+    (Just str :: Maybe String) <- getVar "hello"
     liftIO . print . ("hello "++) $ str
     (StringParam srv) <- maybe (throwError $ ExecutionError "no param") return =<< param "destination"
     dbg $ "sending ping to " ++ srv
   teardown $ dbg "teardown action"
   analyze $ dbg "analyze action"
-
-
