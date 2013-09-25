@@ -33,7 +33,7 @@ data ExecutionError = ExecutionError String
     deriving (Show)
 instance Error ExecutionError where
   noMsg    = ExecutionError "A String Error!"
-  strMsg s = ExecutionError s
+  strMsg   = ExecutionError
 type Step m a = ErrorT ExecutionError (ReaderT (Backend m,Execution m) m) a
 type DynEnv = M.Map String Dynamic
 type EnvIO = (StateT DynEnv IO)
@@ -135,7 +135,7 @@ data Backend m = Backend {
 
 data Result m = Result {
     pPath   :: String
-  , pRead   :: Step m (String)
+  , pRead   :: Step m String
   , pAppend :: String -> Step m ()
   , pWrite  :: String -> Step m ()
 }
@@ -149,7 +149,7 @@ defaultBackend :: Backend EnvIO
 defaultBackend = Backend "default EnvIO backend" prepare finalize setup run teardown analyze recover result load log
   where prepare :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
         prepare sc params = do
-                  uuid <- liftIO $ (randomIO :: IO (UUID))
+                  uuid <- liftIO (randomIO :: IO UUID)
                   let rundir = intercalate "/" [sName sc, show uuid]
                   let exec = Exec sc params rundir Running
                   handles <- liftIO $ do
@@ -179,13 +179,13 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
         result exec       = return . defaultResult exec
 
         load :: ScenarioDescription EnvIO -> EnvIO [Execution EnvIO]
-        load sc           = liftIO $do
+        load sc           = liftIO $ do
             dirs <- filter notDot <$> getDirectoryContents (sName sc)
             let paths = map ((sName sc ++ "/") ++) dirs
             mapM loadOne paths
-            where notDot dirname = not (take 1 dirname == ".")
+            where notDot dirname = take 1 dirname /= "."
                   loadOne path = do
-                    exec' <- (liftM forStored) . decode <$> BSL.readFile (path ++ "/execution.json")
+                    exec' <- liftM forStored . decode <$> BSL.readFile (path ++ "/execution.json")
                     maybe (error $ "decoding: " ++ path) return exec'
 
                     where forStored (Stored params path status) = Exec sc params path status
@@ -201,7 +201,7 @@ defaultResult exec name = Result path read append write
 defaultLog :: Execution m -> LogHandler EnvIO
 defaultLog exec = LogHandler logF
     where logF msg = liftIO $ debugM (loggerName exec) msg
-          path = (ePath exec) ++ "/execution.log"
+          path = ePath exec ++ "/execution.log"
 
 execute' :: (MonadIO m) => Backend m -> ScenarioDescription m -> ParameterSet -> m ()
 execute' b sc prm = execution
@@ -209,17 +209,17 @@ execute' b sc prm = execution
             (exec,final) <- bPrepareExecution b sc prm 
             status <- runReaderT (runErrorT (go exec `catchError` recover exec)) (b, exec)
             let exec' = either (\_ -> exec {eStatus = Failure}) (\_ -> exec {eStatus = Success}) status
-            (bFinalizeExecution b) exec' final
+            bFinalizeExecution b exec' final
             where go exec = do 
-                        bSetup b $ exec
-                        bRun b $ exec
-                        bTeardown b $ exec
-                        bAnalyze b $ exec
+                        bSetup b exec
+                        bRun b exec
+                        bTeardown b exec
+                        bAnalyze b exec
                   recover exec err = bRecover b exec >> throwError err
 
 executeExhaustive :: (MonadIO m) => Backend m -> ScenarioDescription m -> m ()
 executeExhaustive b sc = mapM_ f $ paramSets $ sParams sc
-    where f prm = execute' b sc prm
+    where f = execute' b sc 
 
 executeMissing :: (MonadIO m) => Backend m -> ScenarioDescription m -> m ()
 executeMissing b sc = do
@@ -227,7 +227,7 @@ executeMissing b sc = do
     let exhaustive = S.fromList $ paramSets (sParams sc)
     let existing = S.fromList $ map eParamSet execs
     mapM_ f $ S.toList (exhaustive `S.difference` existing)
-    where f prm = execute' b sc prm
+    where f = execute' b sc
 
 paramSets :: ParameterSpace -> [ParameterSet]
 paramSets ps = map M.fromList $ sequence possibleValues
@@ -235,7 +235,7 @@ paramSets ps = map M.fromList $ sequence possibleValues
           f (k,desc) = map (pName desc,) $ pValues desc
 
 load :: (MonadIO m) => Backend m -> ScenarioDescription m -> m [Execution m]
-load b = bLoad b
+load = bLoad
 
 {- 
  - DSL
@@ -250,17 +250,17 @@ instance Describable (ScenarioDescription a) where
 instance Describable ParameterDescription where
   changeDescription d pa = pa { pDesc = d }
 
-scenario :: String -> (State (ScenarioDescription m) ()) -> ScenarioDescription m
-scenario name f = snd $ runState f sc0
+scenario :: String -> State (ScenarioDescription m) () -> ScenarioDescription m
+scenario name f = execState f sc0
   where sc0 = SDesc name "" M.empty M.empty
 
 describe :: Describable a => String -> State a ()
 describe desc = modify (changeDescription desc)
 
-parameter :: String -> (State ParameterDescription ()) -> State (ScenarioDescription m) ()
+parameter :: String -> State ParameterDescription () -> State (ScenarioDescription m) ()
 parameter name f = modify (addParam name param)
   where addParam k v sc0 = sc0 { sParams = M.insert k v (sParams sc0) }
-        param = snd $ runState f param0
+        param = execState f param0
                 where param0 = PDesc name "" []
 
 values :: [ParameterValue] -> State ParameterDescription ()
@@ -299,24 +299,22 @@ appendHook name f = modify (addHook name $ Action f)
 result :: Monad m => String -> Step m (Result m)
 result name = do 
   (b,r) <- ask
-  (bResult b) r name
+  bResult b r name
 
 logger :: Monad m => Step m (LogHandler m)
 logger = ask >>= uncurry bLogger
 
 writeResult :: Monad m => String -> String -> Step m ()
-writeResult name dat = do
-  result name >>= (flip pWrite) dat
+writeResult name dat = result name >>= flip pWrite dat
 
 appendResult :: Monad m => String -> String -> Step m ()
-appendResult name dat = do
-  result name >>= (flip pAppend) dat
+appendResult name dat = result name >>= flip pAppend dat
 
 dbg :: Monad m => String -> Step m ()
-dbg msg = logger >>= (flip lLog) msg
+dbg msg = logger >>= flip lLog msg
 
 param :: Monad m => String -> Step m (Maybe ParameterValue)
-param key = ask >>= return . M.lookup key . eParamSet . snd
+param key = liftM (M.lookup key . eParamSet . snd) ask
 
 getVar' :: (Functor m, MonadState DynEnv m) => String -> m (Maybe Dynamic)
 getVar' k = M.lookup k <$> get
@@ -342,10 +340,10 @@ ping = scenario "ping" $ do
   describe "ping to a remote server"
   parameter "destination" $ do
     describe "a destination server (host or ip)"
-    values $ [str "example.com", str "probecraft.net"]
+    values [str "example.com", str "probecraft.net"]
   parameter "packet size" $ do
     describe "packet size in bytes"
-    values $ [num 50, num 1500] 
+    values [num 50, num 1500] 
   setup $ do
       setVar "hello" ("world"::String)
       dbg "setting up scenario"
