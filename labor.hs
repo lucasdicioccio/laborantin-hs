@@ -19,6 +19,7 @@ import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import Data.List
 import Data.UUID
+import System.Environment (getArgs)
 import System.Directory
 import System.Random
 import System.Log.Logger
@@ -359,3 +360,5 @@ ping = scenario "ping" $ do
   teardown $ dbg "teardown action"
   recover $ dbg "recovering from error"
   analyze $ dbg "analyze action"
+
+defaultMain scenarii = runEnvIO $ forM_ scenarii $ executeExhaustive defaultBackend
