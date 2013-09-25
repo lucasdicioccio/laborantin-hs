@@ -313,8 +313,10 @@ appendResult name dat = result name >>= flip pAppend dat
 dbg :: Monad m => String -> Step m ()
 dbg msg = logger >>= flip lLog msg
 
-param :: Monad m => String -> Step m (Maybe ParameterValue)
-param key = liftM (M.lookup key . eParamSet . snd) ask
+param :: Monad m => String -> Step m ParameterValue
+param key = do
+    ret <- liftM (M.lookup key . eParamSet . snd) ask
+    maybe (throwError $ ExecutionError $ "missing param: " ++ key) return ret
 
 getVar' :: (Functor m, MonadState DynEnv m) => String -> m (Maybe Dynamic)
 getVar' k = M.lookup k <$> get
@@ -352,7 +354,7 @@ ping = scenario "ping" $ do
   run $ do
     (Just str :: Maybe String) <- getVar "hello"
     liftIO . print . ("hello "++) $ str
-    (StringParam srv) <- maybe (throwError $ ExecutionError "no param") return =<< param "destination"
+    (StringParam srv) <- param "destination"
     dbg $ "sending ping to " ++ srv
   teardown $ dbg "teardown action"
   recover $ dbg "recovering from error"
