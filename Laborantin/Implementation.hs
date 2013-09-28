@@ -1,6 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Laborantin.Implementation where
+module Laborantin.Implementation (
+        EnvIO, runEnvIO
+    , defaultBackend
+    , defaultResult
+    , defaultLog
+) where
 
 import qualified Data.Map as M
 import qualified Data.Text as T
