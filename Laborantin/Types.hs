@@ -1,12 +1,31 @@
 {-# LANGUAGE TupleSections #-}
 
-module Laborantin.Types where
+module Laborantin.Types (
+        ScenarioDescription (..)
+    ,   ParameterDescription (..)
+    ,   ParameterValue (..)
+    ,   ParameterSpace
+    ,   ParameterSet
+    ,   paramSets
+    ,   Result (..)
+    ,   Backend (..)
+    ,   Execution (..)
+    ,   StoredExecution (..)
+    ,   ExecutionError (..)
+    ,   ExecutionStatus (..)
+    ,   Finalizer (..)
+    ,   LogHandler (..)
+    ,   Step
+    ,   Action (..)
+    ,   DynEnv (..)
+) where
 
 import qualified Data.Map as M
 import Control.Monad.Reader
 import Control.Monad.Error
 import Data.Dynamic
 
+type DynEnv = M.Map String Dynamic
 type ParameterSpace = M.Map String ParameterDescription
 data ExecutionError = ExecutionError String
     deriving (Show)
@@ -14,7 +33,6 @@ instance Error ExecutionError where
   noMsg    = ExecutionError "A String Error!"
   strMsg   = ExecutionError
 type Step m a = ErrorT ExecutionError (ReaderT (Backend m,Execution m) m) a
-type DynEnv = M.Map String Dynamic
 
 newtype Action m = Action { unAction :: Step m () }
 
@@ -85,7 +103,3 @@ data Result m = Result {
 }
 
 newtype LogHandler m = LogHandler { lLog :: String -> Step m () }
-
-loggerName :: Execution m -> String
-loggerName exec = "laborantin:" ++ ePath exec
-

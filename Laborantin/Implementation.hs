@@ -117,3 +117,6 @@ defaultLog :: Execution m -> LogHandler EnvIO
 defaultLog exec = LogHandler logF
     where logF msg = liftIO $ debugM (loggerName exec) msg
           path = ePath exec ++ "/execution.log"
+
+loggerName :: Execution m -> String
+loggerName exec = "laborantin:" ++ ePath exec
