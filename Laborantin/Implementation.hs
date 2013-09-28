@@ -25,10 +25,13 @@ import System.Log.Handler (close)
 import System.Log.Handler.Simple
 import System.Log.Handler.Log4jXML
 
+-- | Default monad for 'defaultBackend'.
+--   EnvIO carries a 'DynEnv' in a state and allows you to perform IO actions.
 type EnvIO = (StateT DynEnv IO)
 
-runEnvIO :: EnvIO () -> IO ((), DynEnv)
-runEnvIO m = runStateT m M.empty
+-- | Execute an EnvIO action in IO.
+runEnvIO :: EnvIO () -> IO DynEnv
+runEnvIO m = snd <$> runStateT m M.empty
 
 instance ToJSON ParameterValue where
     toJSON (StringParam str) = object ["type" .= ("string"::T.Text), "val" .= T.pack str]
