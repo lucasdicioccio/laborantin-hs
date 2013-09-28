@@ -68,6 +68,18 @@ instance FromJSON StoredExecution where
                                v .: "status"
     parseJSON _          = mzero
 
+-- | Default backend for the 'EnvIO' monad.  This backend uses the filesystem
+-- as storage and UUIDs for scenario instances (supposes that UUID collision
+-- cannot happen).
+--
+-- Parameters, logfiles, and result data all are stored in a unique directory named
+-- ./<scenario-name>/<uuid>
+-- 
+-- Results are individual files in this directory. There is no namespacing
+-- hence avoid the following names: 'execution.json', 'execution-log.txt', and
+-- 'execution-log.xml'. These three files are the scenario execution metadata
+-- and logs.
+--
 defaultBackend :: Backend EnvIO
 defaultBackend = Backend "default EnvIO backend" prepare finalize setup run teardown analyze recover result load log
   where prepare :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
@@ -114,6 +126,7 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
                     where forStored (Stored params path status) = Exec sc params path status
         log exec          = return $ defaultLog exec
 
+-- | Default result handler for the 'EnvIO' monad (see 'defaultBackend').
 defaultResult :: Execution m -> String -> Result EnvIO
 defaultResult exec name = Result path read append write
   where read        = liftIO $ readFile path
@@ -121,6 +134,7 @@ defaultResult exec name = Result path read append write
         write dat   = liftIO $ writeFile path dat
         path        = intercalate "/" [ePath exec, name]
 
+-- | Default logger for the 'EnvIO' monad (see 'defaultBackend').
 defaultLog :: Execution m -> LogHandler EnvIO
 defaultLog exec = LogHandler logF
     where logF msg = liftIO $ debugM (loggerName exec) msg
