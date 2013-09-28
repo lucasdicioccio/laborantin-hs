@@ -8,7 +8,6 @@ import Control.Monad.Error
 import Data.Dynamic
 
 type ParameterSpace = M.Map String ParameterDescription
-type ParameterGenerator = ParameterDescription -> [ParameterValue]
 data ExecutionError = ExecutionError String
     deriving (Show)
 instance Error ExecutionError where
