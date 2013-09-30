@@ -55,6 +55,7 @@ data ParameterDescription = PDesc {
 data ParameterValue = StringParam String 
   | NumberParam Rational
   | Array [ParameterValue]
+  | Range Rational Rational Rational -- [from, to], by increment
   deriving (Show,Eq,Ord)
 
 type ParameterSet = M.Map String ParameterValue
@@ -75,10 +76,14 @@ data StoredExecution = Stored {
   , seStatus   :: ExecutionStatus
 } deriving (Show)
 
+expandValue :: ParameterValue -> [ParameterValue]
+expandValue (Range from to by)  = map NumberParam [from,from+by .. to]
+expandValue x                   = [x]
+
 paramSets :: ParameterSpace -> [ParameterSet]
 paramSets ps = map M.fromList $ sequence possibleValues
     where possibleValues = map f $ M.toList ps
-          f (k,desc) = map (pName desc,) $ pValues desc
+          f (k,desc) = concatMap (map (pName desc,) . expandValue) $ pValues desc
 type Finalizer m = Execution m -> m ()
 
 data Backend m = Backend {
