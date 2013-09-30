@@ -70,6 +70,10 @@ str = StringParam
 num :: Integer -> ParameterValue
 num = NumberParam . fromInteger
 
+-- | Encapsulate a range as a 'ParameterValue'
+range :: Rational -> Rational -> Rational -> ParameterValue
+range = Range
+
 -- | Encapsulate an array of 'str' or 'num' values as a 'ParameterValue'
 arr :: [ParameterValue] -> ParameterValue
 arr = Array
