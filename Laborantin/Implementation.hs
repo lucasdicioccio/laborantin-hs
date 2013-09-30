@@ -37,6 +37,7 @@ instance ToJSON ParameterValue where
     toJSON (StringParam str) = object ["type" .= ("string"::T.Text), "val" .= T.pack str]
     toJSON (NumberParam n)   = object ["type" .= ("num"::T.Text), "val" .= n]
     toJSON (Array xs)        = toJSON xs
+    toJSON (Range _ _ _)     = error "should not have to encode ranges but concrete values instead"
 
 instance ToJSON ExecutionStatus where
     toJSON = toJSON . show
@@ -53,6 +54,7 @@ instance FromJSON ParameterValue where
         where match :: T.Text -> A.Parser ParameterValue
               match "string" = StringParam <$> v .: "val"
               match "num"    = NumberParam <$> v .: "val"
+              match "range"  = error "should not have to read ranges"
               match _        = mzero
     
     parseJSON _ = mzero
