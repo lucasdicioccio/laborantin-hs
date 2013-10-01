@@ -7,6 +7,7 @@ module Laborantin.DSL (
     ,   values
     ,   str
     ,   num
+    ,   range
     ,   arr
     ,   setup
     ,   teardown
