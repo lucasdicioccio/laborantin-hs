@@ -9,8 +9,8 @@ import Control.Monad.Reader
 import Control.Monad.Error
 import qualified Data.Set as S
 
-execute' :: (MonadIO m) => Backend m -> ScenarioDescription m -> ParameterSet -> m ()
-execute' b sc prm = execution
+execute :: (MonadIO m) => Backend m -> ScenarioDescription m -> ParameterSet -> m ()
+execute b sc prm = execution
   where execution = do
             (exec,final) <- bPrepareExecution b sc prm 
             status <- runReaderT (runErrorT (go exec `catchError` recover exec)) (b, exec)
@@ -25,7 +25,7 @@ execute' b sc prm = execution
 
 executeExhaustive :: (MonadIO m) => Backend m -> ScenarioDescription m -> m ()
 executeExhaustive b sc = mapM_ f $ paramSets $ sParams sc
-    where f = execute' b sc 
+    where f = execute b sc 
 
 executeMissing :: (MonadIO m) => Backend m -> ScenarioDescription m -> m ()
 executeMissing b sc = do
@@ -33,7 +33,7 @@ executeMissing b sc = do
     let exhaustive = S.fromList $ paramSets (sParams sc)
     let existing = S.fromList $ map eParamSet execs
     mapM_ f $ S.toList (exhaustive `S.difference` existing)
-    where f = execute' b sc
+    where f = execute b sc
 
 
 load :: (MonadIO m) => Backend m -> ScenarioDescription m -> m [Execution m]
