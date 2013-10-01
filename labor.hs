@@ -20,21 +20,23 @@ ping = scenario "ping" $ do
   parameter "destination" $ do
     describe "a destination server (host or ip)"
     values [str "example.com", str "probecraft.net"]
-  parameter "packet size" $ do
+  parameter "packet-size" $ do
     describe "packet size in bytes"
     values [num 50, num 1500] 
+  parameter "burst-length" $ do
+    describe "number of back-to-back packets to send"
+    values [range 1 100 10] 
   setup $ do
       setVar "hello" ("world"::String)
       dbg "setting up scenario"
-      writeResult "foobar" "bla"
-      dbg "setup action"
   run $ do
     (Just str :: Maybe String) <- getVar "hello"
     liftIO . print . ("hello "++) $ str
     (StringParam srv) <- param "destination"
-    dbg $ "sending ping to " ++ srv
-  teardown $ dbg "teardown action"
-  recover $ dbg "recovering from error"
+    dbg $ "mimic sending ping to " ++ srv
+    writeResult "raw-result" "a sort of result stored as a separate file"
+  teardown $ dbg "here we could run some teardown action"
+  recover $ dbg "here we could recover from error"
   analyze $ dbg "analyze action"
 
 defaultMain scenarii = runEnvIO $ forM_ scenarii $ executeExhaustive defaultBackend
