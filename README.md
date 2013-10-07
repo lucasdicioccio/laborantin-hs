@@ -37,23 +37,24 @@ process.
 
 Laborantin is moving away from Ruby and adopted Haskell for two distinct
 reasons.  First, Haskell is a functional programming language and it is easier
-to reuse chunk of codes in declarative DSLs with programming languages
-(although Ruby is great for DSLs too). Second, Haskell has a very powerful type
-system and it allows to catch a whole set of bugs at compile time.  While I may
-consider the first point on DSLs open for debate, this second point is the nail
-in the coffin: real-world experiments generally involve a time-consuming phase
-where we act on the physical world (e.g., sending hundreds of network packets
-spaced in time).  You do not want to lose minutes because a typo crashed your
-experiment: it is infuriating and stressful.  You typically cannot write tests
-for this type of "effects on the real-world-only" code. Nor it is possible to
-mock the whole world when you are under pressure for getting results for your
-research.  Thus, Haskell opinionated choices to segregate effectful code from
-pure code and obnoxious type system is a win in code for running experiments.
-One drawback of using Haskell is that Laborantin-Hs needs a compilation phase
-now (i.e., Laborantin-Hs is more a library than a command-line utility).
-Somehow, I think that the pros far outweigh the cons.  Somehow, it seems
-possible to write a `labor`-like script for Laborantin-Hs that will compile the
-project or call `runhaskell` underneath.
+to reuse chunk of codes in declarative DSLs (Domain Specific Languages) with
+programming languages (although Ruby is great for DSLs too). Second, Haskell
+has a very powerful type system and it allows to catch a whole set of bugs at
+compile time. While I may consider the first point on DSLs open for debate,
+this second point is the nail in the coffin: real-world experiments generally
+involve a time-consuming phase where we act on the physical world (e.g.,
+sending hundreds of network packets spaced in time).  You do not want to lose
+minutes because a typo crashed your experiment: it is infuriating and
+stressful.  You typically cannot write tests for this type of "effects on the
+real-world-only" code. Nor it is possible to mock and write unit tests for the
+whole world when you are under pressure for getting results for your research.
+Thus, Haskell opinionated choices to segregate effectful code from pure code
+and obnoxious type system is a win in code for running experiments.  One
+drawback of using Haskell is that Laborantin-Hs needs a compilation phase now
+(i.e., Laborantin-Hs is more a library than a command-line utility).  Somehow,
+I think that the pros far outweigh the cons.  Somehow, it seems possible to
+write a `labor`-like script for Laborantin-Hs that will compile the project or
+call `runhaskell` underneath.
 
 Laborantin-Hs brings the following to the experimenter:
   - a clean DSL to express scenarios, parameters, as well as raw data an
