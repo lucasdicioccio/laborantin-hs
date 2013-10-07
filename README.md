@@ -29,24 +29,43 @@ steps such as:
   - organizing results for the analyses
   - [...]
 
-After each step of analysis, the scientist may want to run extra experiments if
+After each analysis step, the scientist may want to run extra experiments if
 some questions are not fully answered, or if new questions arise. These extra
 experiments again ask for the same care in preparing/conducting/analyzing
-experiments.
+experiments.  Laborantin is a framework to help you along this iterative
+process.
 
-Laborantin is a framework to help you manage experiments, which means reducing
-the pain of the iterative process of experimental science.
+Laborantin is moving away from Ruby and adopted Haskell for two distinct
+reasons.  First, Haskell is a functional programming language and it is easier
+to reuse chunk of codes in declarative DSLs with programming languages
+(although Ruby is great for DSLs too). Second, Haskell has a very powerful type
+system and it allows to catch a whole set of bugs at compile time.  While I may
+consider the first point on DSLs open for debate, this second point is the nail
+in the coffin: real-world experiments generally involve a time-consuming phase
+where we act on the physical world (e.g., sending hundreds of network packets
+spaced in time).  You do not want to lose minutes because a typo crashed your
+experiment: it is infuriating and stressful.  You typically cannot write tests
+for this type of "effects on the real-world-only" code. Nor it is possible to
+mock the whole world when you are under pressure for getting results for your
+research.  Thus, Haskell opinionated choices to segregate effectful code from
+pure code and obnoxious type system is a win in code for running experiments.
+One drawback of using Haskell is that Laborantin-Hs needs a compilation phase
+now (i.e., Laborantin-Hs is more a library than a command-line utility).
+Somehow, I think that the pros far outweigh the cons.  Somehow, it seems
+possible to write a `labor`-like script for Laborantin-Hs that will compile the
+project or call `runhaskell` underneath.
 
-Laborantin brings the following to the experimenter:
+Laborantin-Hs brings the following to the experimenter:
   - a clean DSL to express scenarios, parameters, as well as raw data an
     product analysis
   - an execution engine that runs scenarios, exhausting the parameter space for you
   - a default backend to store executed scenarios data and metadata in the
     filesystem
   - auto-documentation features to later generate simple HTML reports
+  - the full power of Haskell type-system to catch runtime errors at compile time
 
 With releasing Laborantin for free and under an open-source license, our goal
-is to make sure your precious expert time is used in productive efforts. This
+is to make sure that your precious expert time is used in productive efforts. This
 is not a purely altruistic goal because I want to benefit from your good
 science asap.  Another goal of Laborantin is to empower scientists who want to
 open their code and datasets more easily than possible nowadays.
@@ -57,10 +76,10 @@ A pattern I started with, and that I have seen often while observing my peers
 is to encode parameters in filename such as process_A_parameterX1.dat to store
 a data result and `process_A_parameterX2.dat`. For instance
 `ping_grenouille.com_1500.dat`.  Such a scheme is okay for a first shot but
-quickly become impossible to maintain past one parameter, or when you have
-special characters in string params.  Indeed, with evolving version of *process
+quickly becomes opaque past a few parameters, or when you have
+special characters in string parameters.  Plus, with evolving version of *process
 A* into finer and finer refinements a whole genealogy of experiments unrolls
-and the number of required result files explodes.  The same effect happens as
+and the number of required result files explodes. A similar effect happens as
 the number of result files needed grows or as the number of parameters
 increases.  
 
@@ -75,12 +94,15 @@ experiments while evolving the set of experiments quickly becomes painful.  You
 can try to work around by combining `make` with shell scripts and environment
 variables but the coupling between different files becomes so tight that your
 experiment project is impossible to maintain and it will fail in absurd and
-totally obscure manner.
+totally obscure manner. Similarly, I let you imagine how annoying it is, when
+you spent a full day writing and debugging your Makefile and it turns out you
+need to spend another day to make sure `make clean` does not wipe all your
+results because you had an experiment crash.
 
 The only way around managing results for an exploding parameter space is to use
 a sort of database, and to let the computer manage the database. If you ever
 start encoding parameters values or experiment names in filenames, you are
-doing it wrong. It is exactly the same thing that using a spoon to drive a
+doing it wrong. It is exactly the same as that using a spoon to drive a
 screw: it works but it is a lot of effort. Laborantin is out, free, and
 open-source: use it, fork it, or clone it.
 
@@ -89,7 +111,7 @@ open-source: use it, fork it, or clone it.
 
 # TODO
 
-* more doc
+* more doc about the move away from ruby
 * use Text rather than String where appropriate
 * defaultMain with run/describe/find/analyze/rm modes
 * in-memory (pure?) backend
