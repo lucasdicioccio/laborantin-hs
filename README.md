@@ -48,13 +48,13 @@ minutes because a typo crashed your experiment: it is infuriating and
 stressful.  You typically cannot write tests for this type of "effects on the
 real-world-only" code. Nor it is possible to mock and write unit tests for the
 whole world when you are under pressure for getting results for your research.
-Thus, Haskell opinionated choices to segregate effectful code from pure code
-and obnoxious type system is a win in code for running experiments.  One
-drawback of using Haskell is that Laborantin-Hs needs a compilation phase now
-(i.e., Laborantin-Hs is more a library than a command-line utility).  Somehow,
-I think that the pros far outweigh the cons.  Somehow, it seems possible to
-write a `labor`-like script for Laborantin-Hs that will compile the project or
-call `runhaskell` underneath.
+Thus, Haskell's opinionated choices to segregate effectful code from pure code
+and Haskell's obnoxious type system is a time saver in code for running
+experiments.  One drawback of using Haskell is that Laborantin-Hs needs a
+compilation phase now (i.e., Laborantin-Hs is more a library than a
+command-line utility).  Somehow, I think that the pros far outweigh the cons.
+Somehow, it seems possible to write a `labor`-like script for Laborantin-Hs
+that will compile the project or call `runhaskell` underneath.
 
 Laborantin-Hs brings the following to the experimenter:
   - a clean DSL to express scenarios, parameters, as well as raw data an
@@ -90,15 +90,17 @@ parameters in filenames, an obvious next step is to use a build system such as
 Make is a build system for managing dependencies in a build process.  I think
 you can use `make` to explore a set of parameters, but it looks totally
 unnatural to write rules for encoding and decoding parameters in filenames.  In
-the end, your make script is barely introspectable. Thus, documenting the
-experiments while evolving the set of experiments quickly becomes painful.  You
-can try to work around by combining `make` with shell scripts and environment
-variables but the coupling between different files becomes so tight that your
-experiment project is impossible to maintain and it will fail in absurd and
-totally obscure manner. Similarly, I let you imagine how annoying it is, when
-you spent a full day writing and debugging your Makefile and it turns out you
-need to spend another day to make sure `make clean` does not wipe all your
-results because you had an experiment crash.
+the end, your Makefile is barely decipherable and you need the Rosetta stone
+to remember what `%<` means because your web search engine will simply ignore
+the glyph. Thus, documenting the experiments while evolving the set of
+experiments quickly becomes painful.  You can try to work around by combining
+`make` with shell scripts and environment variables but the coupling between
+different files becomes so tight that your experiment project is impossible to
+maintain and it will fail in absurd and totally obscure manner. Similarly, I
+let you imagine how annoying it is, when you spent a full day writing and
+debugging your Makefile and it turns out you need to spend another day to make
+sure `make clean` does not wipe all your results because you had an experiment
+crash.
 
 The only way around managing results for an exploding parameter space is to use
 a sort of database, and to let the computer manage the database. If you ever
