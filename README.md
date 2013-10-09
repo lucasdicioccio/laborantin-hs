@@ -49,11 +49,11 @@ experiment: it is infuriating and stressful.  You typically cannot write tests
 for this type of "effects on the real-world-only" code. Nor it is possible to
 mock and write unit tests for the whole world when you are under pressure for
 getting results for your research.  Thus, Haskell's opinionated choices to
-segregate effectful code from pure code and Haskell's obnoxious type system is
+segregate effectful code from pure code and Haskell's obnoxious type system are
 a time saver in code for running experiments.  One drawback of using Haskell is
 that Laborantin-Hs needs a compilation phase now (i.e., Laborantin-Hs is more a
 library than a command-line utility).  Somehow, I think that the pros far
-outweigh the cons.  Somehow, it seems possible to write a `labor`-like script
+outweigh the cons.  Plus, it seems possible to write a `labor`-like script
 for Laborantin-Hs that will compile the project or call `runhaskell`
 underneath.
 
