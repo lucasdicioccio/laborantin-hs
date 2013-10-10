@@ -22,6 +22,7 @@ module Laborantin.DSL (
     ,   appendResult
     ,   logger
     ,   dbg
+    ,   err
 ) where
 
 import qualified Data.Map as M
@@ -136,6 +137,10 @@ logger = ask >>= uncurry bLogger
 -- | Sends a line of data to the logger (debug mode)
 dbg :: Monad m => String -> Step m ()
 dbg msg = logger >>= flip lLog msg
+
+-- | Interrupts the scenario by throwing an error
+err :: Monad m => String -> Step m ()
+err = throwError . ExecutionError
 
 -- | Get the parameter with given name.
 -- Throw an error if the parameter is missing.
