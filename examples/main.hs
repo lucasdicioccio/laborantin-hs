@@ -19,7 +19,7 @@ ping = scenario "ping" $ do
   describe "ping to a remote server"
   parameter "destination" $ do
     describe "a destination server (host or ip)"
-    values [str "example.com", str "probecraft.net"]
+    values [str "example.com", str "probecraft.net", str "nonexistent"]
   parameter "packet-size" $ do
     describe "packet size in bytes"
     values [num 50, num 1500] 
@@ -33,10 +33,12 @@ ping = scenario "ping" $ do
     (Just str :: Maybe String) <- getVar "hello"
     liftIO . print . ("hello "++) $ str
     (StringParam srv) <- param "destination"
-    dbg $ "mimic sending ping to " ++ srv
+    case srv of
+        "nonexistent" -> err "noooo"
+        str           -> dbg $ "mimic sending ping to " ++ str
     writeResult "raw-result" "a sort of result stored as a separate file"
   teardown $ dbg "here we could run some teardown action"
-  recover $ dbg "here we could recover from error"
+  recover $ \err -> dbg $ "here we could recover from error: " ++ show err
   analyze $ dbg "analyze action"
 
 defaultMain scenarii = runEnvIO $ forM_ scenarii $ executeExhaustive defaultBackend
