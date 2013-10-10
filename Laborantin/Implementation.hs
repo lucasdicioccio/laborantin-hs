@@ -15,8 +15,10 @@ import Data.Aeson (decode,encode,FromJSON,parseJSON,(.:),ToJSON,toJSON,(.=),obje
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import Control.Monad.State
+import Control.Monad.Error
 import Control.Applicative ((<$>),(<*>))
 import Data.List
+import Data.Maybe
 import Data.UUID
 import System.Directory
 import System.Random
@@ -111,7 +113,8 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
         run               = callHooks "run" . eScenario
         teardown          = callHooks "teardown" . eScenario
         analyze           = callHooks "analyze" . eScenario
-        recover           = callHooks "recover" . eScenario
+        recover err exec  = unAction (doRecover err)
+                            where doRecover = fromMaybe (\_ -> Action $ return ()) (sRecoveryAction $ eScenario exec) 
         callHooks key sc  = maybe (error $ "no such hook: " ++ key) unAction (M.lookup key $ sHooks sc)
         result exec       = return . defaultResult exec
 

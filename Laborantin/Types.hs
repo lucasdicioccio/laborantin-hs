@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Laborantin.Types (
         ScenarioDescription (..)
@@ -39,11 +40,15 @@ newtype Action m = Action { unAction :: Step m () }
 instance Show (Action m) where
   show _ = "(Action)"
 
+instance Show (ExecutionError -> Action m) where
+  show _ = "(Error-recovery action)"
+
 data ScenarioDescription m = SDesc {
     sName   :: String
   , sDesc   :: String
   , sParams :: ParameterSpace
   , sHooks  :: M.Map String (Action m)
+  , sRecoveryAction :: Maybe (ExecutionError -> Action m)
   } deriving (Show)
 
 data ParameterDescription = PDesc {
@@ -94,7 +99,7 @@ data Backend m = Backend {
   , bRun       :: Execution m -> Step m ()
   , bTeardown  :: Execution m -> Step m ()
   , bAnalyze   :: Execution m -> Step m ()
-  , bRecover   :: Execution m -> Step m ()
+  , bRecover   :: ExecutionError -> Execution m -> Step m ()
   , bResult    :: Execution m -> String -> Step m (Result m)
   , bLoad      :: ScenarioDescription m -> m [Execution m]
   , bLogger    :: Execution m -> Step m (LogHandler m)

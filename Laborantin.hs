@@ -21,7 +21,7 @@ execute b sc prm = execution
                         bRun b exec
                         bTeardown b exec
                         bAnalyze b exec
-                  recover exec err = bRecover b exec >> throwError err
+                  recover exec err = bRecover b err exec >> throwError err
 
 executeExhaustive :: (MonadIO m) => Backend m -> ScenarioDescription m -> m ()
 executeExhaustive b sc = mapM_ f $ paramSets $ sParams sc

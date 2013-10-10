@@ -44,7 +44,7 @@ instance Describable ParameterDescription where
 -- | DSL entry point to build a 'ScenarioDescription'.
 scenario :: String -> State (ScenarioDescription m) () -> ScenarioDescription m
 scenario name f = execState f sc0
-  where sc0 = SDesc name "" M.empty M.empty
+  where sc0 = SDesc name "" M.empty M.empty Nothing
 
 -- | Attach a description to the 'Parameter' / 'Scnario'
 describe :: Describable a => String -> State a ()
@@ -92,8 +92,10 @@ teardown :: Step m () -> State (ScenarioDescription m) ()
 teardown  = appendHook "teardown"
 
 -- | Define the recovery hook for this scenario
-recover :: Step m () -> State (ScenarioDescription m) ()
-recover  = appendHook "recover"
+recover :: (ExecutionError -> Step m ()) -> State (ScenarioDescription m) ()
+recover f = modify (setRecoveryAction action)
+  where action err = Action (f err)
+        setRecoveryAction act sc = sc { sRecoveryAction = Just act }
 
 -- | Define the offline analysis hook for this scenario
 analyze :: Step m () -> State (ScenarioDescription m) ()
