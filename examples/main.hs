@@ -9,6 +9,7 @@ import Laborantin.DSL
 import Laborantin.Implementation
 import Control.Monad
 import Control.Monad.IO.Class
+import System.Environment
 
 {- 
  - Example
@@ -41,6 +42,13 @@ ping = scenario "ping" $ do
   recover $ \err -> dbg $ "here we could recover from error: " ++ show err
   analyze $ dbg "analyze action"
 
-defaultMain scenarii = runEnvIO $ forM_ scenarii $ executeExhaustive defaultBackend
+defaultMain scenarii = do
+    args <- getArgs
+    case args of
+        ["describe"]    -> print scenarii
+        ["find"]        -> (runEnvIO $ mapM (load defaultBackend) scenarii) >>= print
+        ["run"]         -> void $runEnvIO $ forM_ scenarii $ executeExhaustive defaultBackend
+        ["continue"]    -> void $runEnvIO $ forM_ scenarii $ executeMissing defaultBackend
+        _ -> print "<describe|find|run|continue>"
 
 main = defaultMain [ping]

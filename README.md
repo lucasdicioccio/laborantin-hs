@@ -115,9 +115,8 @@ open-source: use it, fork it, or clone it.
 
 # TODO
 
-* more doc about the move away from ruby
-* use Text rather than String where appropriate
 * defaultMain with run/describe/find/analyze/rm modes
+* use Text rather than String where appropriate
 * in-memory (pure?) backend
 * dependency annotations
 * configuration reader

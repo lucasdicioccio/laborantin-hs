@@ -32,8 +32,8 @@ import System.Log.Handler.Log4jXML
 type EnvIO = (StateT DynEnv IO)
 
 -- | Execute an EnvIO action in IO.
-runEnvIO :: EnvIO () -> IO DynEnv
-runEnvIO m = snd <$> runStateT m M.empty
+runEnvIO :: EnvIO a -> IO (a,DynEnv)
+runEnvIO m = runStateT m M.empty
 
 instance ToJSON ParameterValue where
     toJSON (StringParam str) = object ["type" .= ("string"::T.Text), "val" .= T.pack str]

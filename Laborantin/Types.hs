@@ -66,7 +66,7 @@ data ParameterValue = StringParam String
 type ParameterSet = M.Map String ParameterValue
 
 data ExecutionStatus = Running | Success | Failure 
-  deriving (Show,Read)
+  deriving (Show,Read,Eq)
 
 data Execution m = Exec {
     eScenario :: ScenarioDescription m
