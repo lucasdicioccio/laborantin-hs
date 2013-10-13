@@ -7,11 +7,8 @@ import Laborantin
 import Laborantin.Types
 import Laborantin.DSL
 import Laborantin.Implementation
-import Control.Monad
+import Laborantin.CLI
 import Control.Monad.IO.Class
-import System.Environment
-import Data.Map (toList)
-import Data.List (intercalate)
 
 {- 
  - Example
@@ -43,40 +40,5 @@ ping = scenario "ping" $ do
   teardown $ dbg "here we could run some teardown action"
   recover $ \err -> dbg $ "here we could recover from error: " ++ show err
   analyze $ dbg "analyze action"
-
-defaultMain scenarii = do
-    args <- getArgs
-    case args of
-        ["describe"]    -> forM_ scenarii (putStrLn . describeScenario)
-        ["find"]        -> (runEnvIO $ mapM (load defaultBackend) scenarii) >>= print
-        ["run"]         -> void $runEnvIO $ forM_ scenarii $ executeExhaustive defaultBackend
-        ["continue"]    -> void $runEnvIO $ forM_ scenarii $ executeMissing defaultBackend
-        _ -> print "<describe|find|run|continue>"
-
-unlines' :: [String] -> String
-unlines' = intercalate "\n"
-
-describeScenario :: ScenarioDescription m -> String
-describeScenario sc = unlines [
-    "# Scenario: " ++ sName sc
-  , "    " ++ sDesc sc
-  , "    " ++ (show . length . paramSets $ sParams sc) ++ " parameter combinations by default"
-  , "## Parameters:"
-  , unlines' $ paramLines
-  ]
-  where paramLines = map (uncurry paramLine) pairs
-        pairs = toList $ sParams sc
-        paramLine n p = unlines' [
-                          "### " ++ n
-                        , describeParameter p
-                        ]
-
-describeParameter :: ParameterDescription -> String
-describeParameter p = unlines' [
-    "(" ++ pName p ++ ")"
-  , "    " ++ pDesc p
-  , "    " ++ (show . length $ concatMap expandValue $ pValues p) ++ " values:"
-  , unlines $ map (("    - " ++) . show) (pValues p)
-  ]
 
 main = defaultMain [ping]
