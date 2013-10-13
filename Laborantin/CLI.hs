@@ -1,4 +1,3 @@
-
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, DeriveDataTypeable #-}
 
 module Laborantin.CLI (defaultMain) where
@@ -10,7 +9,7 @@ import Laborantin.Types
 import Laborantin.Implementation
 import System.Environment
 import System.Console.CmdLib hiding (run)
-import Data.Map (toList)
+import qualified Data.Map as M
 import Data.List (intercalate)
 
 defaultMain xs = getArgs >>= dispatchR [] >>= runLabor xs
@@ -27,7 +26,7 @@ describeScenario sc = unlines [
   , unlines' $ paramLines
   ]
   where paramLines = map (uncurry paramLine) pairs
-        pairs = toList $ sParams sc
+        pairs = M.toList $ sParams sc
         paramLine n p = unlines' [
                           "### " ++ n
                         , describeParameter p
@@ -81,10 +80,32 @@ instance Attributes Labor where
 instance RecordCommand Labor where
     mode_summary _ = "Laborantin command-line interface"
 
+data DescriptionQuery = ScenarioName [String]
+    deriving (Show)
+
+data ExecutionQuery = Parameter String ParameterValue
+    deriving (Show)
+
+parseParamQuery :: String -> Maybe ParameterValue
+parseParamQuery str = undefined
+
+filterDescriptions :: DescriptionQuery -> [ScenarioDescription m] -> [ScenarioDescription m]
+filterDescriptions (ScenarioName []) xs = xs
+filterDescriptions (ScenarioName ns) xs = filter ((flip elem ns) . sName) xs
+
+filterExecutions :: ExecutionQuery -> [Execution m] -> [Execution m]
+filterExecutions (Parameter k v) xs = filter ((== Just v) . M.lookup k . eParamSet) xs
+
 runLabor :: [ScenarioDescription EnvIO] -> Labor -> IO ()
-runLabor xs (Describe {})   =  forM_ xs (putStrLn . describeScenario)
-runLabor xs (Find {})       =  (runEnvIO $ mapM (load defaultBackend) xs) >>= print
-runLabor xs (Run { continue = False }) = do
-    void . runEnvIO . forM_ xs $ executeExhaustive defaultBackend
-runLabor xs (Run { continue = True }) = do
-    void . runEnvIO . forM_ xs $ executeMissing defaultBackend
+runLabor xs (Describe scii)   =  forM_ xs' (putStrLn . describeScenario)
+    where xs' = filterDescriptions (ScenarioName scii) xs
+runLabor xs fi@(Find {})       =  (runEnvIO $ mapM (load defaultBackend) xs') >>= print
+    where xs' = filterDescriptions (ScenarioName $ scenarii fi) xs
+runLabor xs fi@(Rm {})         =  void $ runEnvIO (mapM (load defaultBackend) xs' >>= mapM (remove defaultBackend) . concat)
+    where xs' = filterDescriptions (ScenarioName $ scenarii fi) xs
+runLabor xs r@(Run { continue = False }) = do
+    void . runEnvIO . forM_ xs' $ executeExhaustive defaultBackend
+    where xs' = filterDescriptions (ScenarioName $ scenarii r) xs
+runLabor xs r@(Run { continue = True }) = do
+    void . runEnvIO . forM_ xs' $ executeMissing defaultBackend
+    where xs' = filterDescriptions (ScenarioName $ scenarii r) xs
