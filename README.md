@@ -115,8 +115,9 @@ open-source: use it, fork it, or clone it.
 
 # TODO
 
-* defaultMain with run/describe/find/analyze/rm modes
+* implement defaultMain
+	find
+	analyze
+	rm modes
 * use Text rather than String where appropriate
-* in-memory (pure?) backend
 * dependency annotations
-* configuration reader
