@@ -38,3 +38,6 @@ executeMissing b sc = do
 
 load :: (MonadIO m) => Backend m -> ScenarioDescription m -> m [Execution m]
 load = bLoad
+
+remove :: (MonadIO m) => Backend m -> Execution m -> m ()
+remove = bRemove

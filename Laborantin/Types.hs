@@ -104,6 +104,7 @@ data Backend m = Backend {
   , bResult    :: Execution m -> String -> Step m (Result m)
   , bLoad      :: ScenarioDescription m -> m [Execution m]
   , bLogger    :: Execution m -> Step m (LogHandler m)
+  , bRemove    :: Execution m -> m ()
 }
 
 data Result m = Result {

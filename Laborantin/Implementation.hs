@@ -85,7 +85,7 @@ instance FromJSON StoredExecution where
 -- and logs.
 --
 defaultBackend :: Backend EnvIO
-defaultBackend = Backend "default EnvIO backend" prepare finalize setup run teardown analyze recover result load log
+defaultBackend = Backend "default EnvIO backend" prepare finalize setup run teardown analyze recover result load log rm
   where prepare :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
         prepare sc params = do
                   uuid <- liftIO (randomIO :: IO UUID)
@@ -130,6 +130,7 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
 
                     where forStored (Stored params path status) = Exec sc params path status
         log exec          = return $ defaultLog exec
+        rm exec           = liftIO $ removeDirectoryRecursive $ ePath exec
 
 -- | Default result handler for the 'EnvIO' monad (see 'defaultBackend').
 defaultResult :: Execution m -> String -> Result EnvIO
