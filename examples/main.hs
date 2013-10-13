@@ -10,6 +10,8 @@ import Laborantin.Implementation
 import Control.Monad
 import Control.Monad.IO.Class
 import System.Environment
+import Data.Map (toList)
+import Data.List (intercalate)
 
 {- 
  - Example
@@ -45,10 +47,35 @@ ping = scenario "ping" $ do
 defaultMain scenarii = do
     args <- getArgs
     case args of
-        ["describe"]    -> print scenarii
+        ["describe"]    -> forM_ scenarii (putStrLn . describeScenario)
         ["find"]        -> (runEnvIO $ mapM (load defaultBackend) scenarii) >>= print
         ["run"]         -> void $runEnvIO $ forM_ scenarii $ executeExhaustive defaultBackend
         ["continue"]    -> void $runEnvIO $ forM_ scenarii $ executeMissing defaultBackend
         _ -> print "<describe|find|run|continue>"
+
+unlines' :: [String] -> String
+unlines' = intercalate "\n"
+
+describeScenario :: ScenarioDescription m -> String
+describeScenario sc = unlines [
+    "# Scenario: " ++ sName sc
+  , "    " ++ sDesc sc
+  , "## Parameters:"
+  , unlines' $ paramLines
+  ]
+  where paramLines = map (uncurry paramLine) pairs
+        pairs = toList $ sParams sc
+        paramLine n p = unlines' [
+                          "### " ++ n
+                        , describeParameter p
+                        ]
+
+describeParameter :: ParameterDescription -> String
+describeParameter p = unlines' [
+    "(" ++ pName p ++ ")"
+  , "    " ++ pDesc p
+  , "    default values:"
+  , unlines $ map (("    - " ++) . show) (pValues p)
+  ]
 
 main = defaultMain [ping]
