@@ -8,6 +8,7 @@ module Laborantin.Types (
     ,   ParameterSpace
     ,   ParameterSet
     ,   paramSets
+    ,   expandValue
     ,   Result (..)
     ,   Backend (..)
     ,   Execution (..)

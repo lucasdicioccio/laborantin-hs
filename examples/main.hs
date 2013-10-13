@@ -60,6 +60,7 @@ describeScenario :: ScenarioDescription m -> String
 describeScenario sc = unlines [
     "# Scenario: " ++ sName sc
   , "    " ++ sDesc sc
+  , "    " ++ (show . length . paramSets $ sParams sc) ++ " parameter combinations by default"
   , "## Parameters:"
   , unlines' $ paramLines
   ]
@@ -74,7 +75,7 @@ describeParameter :: ParameterDescription -> String
 describeParameter p = unlines' [
     "(" ++ pName p ++ ")"
   , "    " ++ pDesc p
-  , "    default values:"
+  , "    " ++ (show . length $ concatMap expandValue $ pValues p) ++ " values:"
   , unlines $ map (("    - " ++) . show) (pValues p)
   ]
 
