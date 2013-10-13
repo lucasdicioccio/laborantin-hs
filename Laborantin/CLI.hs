@@ -11,6 +11,8 @@ import System.Environment
 import System.Console.CmdLib hiding (run)
 import qualified Data.Map as M
 import Data.List (intercalate)
+import Data.Aeson (encode)
+import qualified Data.ByteString.Lazy.Char8 as C
 
 defaultMain xs = getArgs >>= dispatchR [] >>= runLabor xs
 
@@ -39,6 +41,14 @@ describeParameter p = unlines' [
   , "    " ++ (show . length $ concatMap expandValue $ pValues p) ++ " values:"
   , unlines $ map (("    - " ++) . show) (pValues p)
   ]
+
+describeExecution :: Execution m -> String
+describeExecution e = intercalate " " [ ePath e
+                                      , sName (eScenario e)
+                                      , "(" ++ show (eStatus e) ++ ")"
+                                      , C.unpack $ encode (eParamSet e)
+                                      ]
+
 
 data Labor = Run        { scenarii   :: [String] , params :: [String] , continue :: Bool} 
            | Describe   { scenarii   :: [String] } 
@@ -99,7 +109,7 @@ filterExecutions (Parameter k v) xs = filter ((== Just v) . M.lookup k . eParamS
 runLabor :: [ScenarioDescription EnvIO] -> Labor -> IO ()
 runLabor xs (Describe scii)   =  forM_ xs' (putStrLn . describeScenario)
     where xs' = filterDescriptions (ScenarioName scii) xs
-runLabor xs fi@(Find {})       =  (runEnvIO $ mapM (load defaultBackend) xs') >>= print
+runLabor xs fi@(Find {})       =  (runEnvIO $ mapM (load defaultBackend) xs') >>= return . concat . fst >>= mapM_ (putStrLn . describeExecution)
     where xs' = filterDescriptions (ScenarioName $ scenarii fi) xs
 runLabor xs fi@(Rm {})         =  void $ runEnvIO (mapM (load defaultBackend) xs' >>= mapM (remove defaultBackend) . concat)
     where xs' = filterDescriptions (ScenarioName $ scenarii fi) xs
