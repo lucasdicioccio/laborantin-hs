@@ -13,6 +13,7 @@ import qualified Data.Map as M
 import Data.List (intercalate)
 import Data.Aeson (encode)
 import qualified Data.ByteString.Lazy.Char8 as C
+import Data.List.Split (splitOn)
 
 defaultMain xs = getArgs >>= dispatchR [] >>= runLabor xs
 
@@ -96,8 +97,14 @@ data DescriptionQuery = ScenarioName [String]
 data ExecutionQuery = Parameter String ParameterValue
     deriving (Show)
 
-parseParamQuery :: String -> Maybe ParameterValue
-parseParamQuery str = undefined
+parseParamQuery :: String -> Maybe (String,ParameterValue)
+parseParamQuery str = let vals = splitOn ":" str in
+    case vals of
+    [k,"int",v] -> Just (k, NumberParam . toRational $ read v)
+    [k,"double",v] -> Just (k, NumberParam . toRational $ (read v :: Double))
+    [k,"rational",v] -> Just (k, NumberParam $ read v)
+    [k,"str",v] -> Just (k, StringParam v)
+    _           -> Nothing
 
 filterDescriptions :: DescriptionQuery -> [ScenarioDescription m] -> [ScenarioDescription m]
 filterDescriptions (ScenarioName []) xs = xs
