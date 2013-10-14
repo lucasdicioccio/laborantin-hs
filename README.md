@@ -117,6 +117,6 @@ open-source: use it, fork it, or clone it.
 
 * in defaultMain
 	- analyze command
-    - mini syntax to read/write parameters
+    - move parameter querying out of CLI module and reuse it in load / execute
 * use Text rather than String where appropriate
 * dependency annotations
