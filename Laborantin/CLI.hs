@@ -12,6 +12,7 @@ import System.Console.CmdLib hiding (run)
 import qualified Data.Map as M
 import Data.List (intercalate)
 import Data.Aeson (encode)
+import Data.Maybe (catMaybes)
 import qualified Data.ByteString.Lazy.Char8 as C
 import Data.List.Split (splitOn)
 
@@ -94,30 +95,31 @@ instance RecordCommand Labor where
 data DescriptionQuery = ScenarioName [String]
     deriving (Show)
 
-data ExecutionQuery = Parameter String ParameterValue
-    deriving (Show)
+type ExecutionQuery = M.Map String [ParameterValue]
 
-parseParamQuery :: String -> Maybe (String,ParameterValue)
+parseParamQuery :: String -> Maybe (String,[ParameterValue])
 parseParamQuery str = let vals = splitOn ":" str in
     case vals of
-    [k,"int",v] -> Just (k, NumberParam . toRational $ read v)
-    [k,"double",v] -> Just (k, NumberParam . toRational $ (read v :: Double))
-    [k,"rational",v] -> Just (k, NumberParam $ read v)
-    [k,"str",v] -> Just (k, StringParam v)
-    _           -> Nothing
+    [k,"int",v]      -> Just (k, [NumberParam . toRational $ read v])
+    [k,"double",v]   -> Just (k, [NumberParam . toRational $ (read v :: Double)])
+    [k,"rational",v] -> Just (k, [NumberParam $ read v])
+    [k,"str",v]      -> Just (k, [StringParam v])
+    _                -> Nothing
+
+paramsToQuery :: [String] -> ExecutionQuery
+paramsToQuery xs = let pairs = catMaybes (map parseParamQuery xs) in
+    M.fromListWith (++) pairs
 
 filterDescriptions :: DescriptionQuery -> [ScenarioDescription m] -> [ScenarioDescription m]
 filterDescriptions (ScenarioName []) xs = xs
 filterDescriptions (ScenarioName ns) xs = filter ((flip elem ns) . sName) xs
 
-filterExecutions :: ExecutionQuery -> [Execution m] -> [Execution m]
-filterExecutions (Parameter k v) xs = filter ((== Just v) . M.lookup k . eParamSet) xs
+matchQuery :: ExecutionQuery -> ParameterSet -> Bool
+matchQuery m params = all id $ map snd $ M.toList $ M.intersectionWith elem params m
 
 runLabor :: [ScenarioDescription EnvIO] -> Labor -> IO ()
 runLabor xs (Describe scii)   =  forM_ xs' (putStrLn . describeScenario)
     where xs' = filterDescriptions (ScenarioName scii) xs
-runLabor xs fi@(Find {})       =  (runEnvIO $ mapM (load defaultBackend) xs') >>= return . concat . fst >>= mapM_ (putStrLn . describeExecution)
-    where xs' = filterDescriptions (ScenarioName $ scenarii fi) xs
 runLabor xs fi@(Rm {})         =  void $ runEnvIO (mapM (load defaultBackend) xs' >>= mapM (remove defaultBackend) . concat)
     where xs' = filterDescriptions (ScenarioName $ scenarii fi) xs
 runLabor xs r@(Run { continue = False }) = do
@@ -126,3 +128,9 @@ runLabor xs r@(Run { continue = False }) = do
 runLabor xs r@(Run { continue = True }) = do
     void . runEnvIO . forM_ xs' $ executeMissing defaultBackend
     where xs' = filterDescriptions (ScenarioName $ scenarii r) xs
+runLabor xs fi@(Find {})       =  do
+    results <- (runEnvIO $ mapM (load defaultBackend) xs')
+    let execs = filter (matchQuery query . eParamSet) $ concat $ fst results 
+    mapM_ (putStrLn . describeExecution) execs
+    where xs' = filterDescriptions (ScenarioName $ scenarii fi) xs
+          query = paramsToQuery $ params fi
