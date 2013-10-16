@@ -14,6 +14,7 @@ module Laborantin.Types (
     ,   Execution (..)
     ,   StoredExecution (..)
     ,   ExecutionError (..)
+    ,   AnalysisError (..)
     ,   ExecutionStatus (..)
     ,   Finalizer (..)
     ,   LogHandler (..)
@@ -31,9 +32,14 @@ type DynEnv = M.Map String Dynamic
 type ParameterSpace = M.Map String ParameterDescription
 data ExecutionError = ExecutionError String
     deriving (Show)
+data AnalysisError = AnalysisError String
+    deriving (Show)
 instance Error ExecutionError where
   noMsg    = ExecutionError "A String Error!"
   strMsg   = ExecutionError
+instance Error AnalysisError where
+  noMsg    = AnalysisError "A String Error!"
+  strMsg   = AnalysisError
 type Step m a = ErrorT ExecutionError (ReaderT (Backend m,Execution m) m) a
 
 newtype Action m = Action { unAction :: Step m () }

@@ -116,7 +116,7 @@ open-source: use it, fork it, or clone it.
 # TODO
 
 * in defaultMain
-	- analyze command
-    - move parameter querying out of CLI module and reuse it in load / execute
+	- prepare a logger for analyze command
+    - move parameter querying out of CLI module
 * use Text rather than String where appropriate
 * dependency annotations

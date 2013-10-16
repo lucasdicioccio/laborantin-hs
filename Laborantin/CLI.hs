@@ -130,6 +130,7 @@ runLabor xs labor =
     (Rm {})                         -> runSc loadAndRemove
     (Run { continue = False })      -> runSc execAll
     (Run { continue = True })       -> runSc execRemaining
+    Analyze {}                      -> runSc loadAndAnalyze
 
     where xs'           = filterDescriptions (ScenarioName $ scenarii labor) xs
           query         = paramsToQuery $ params labor
@@ -137,6 +138,7 @@ runLabor xs labor =
           loadAll       = concat <$> mapM (load defaultBackend) xs'
           loadMatching  = filterExecutions query <$> loadAll
           loadAndRemove = loadMatching >>= mapM (remove defaultBackend)
+          loadAndAnalyze= loadMatching >>= mapM (executeAnalysis defaultBackend)
           execAll       = forM_ xs' $ executeExhaustive defaultBackend
           execRemaining = forM_ xs' $ executeMissing defaultBackend
            

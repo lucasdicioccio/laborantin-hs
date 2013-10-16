@@ -39,6 +39,6 @@ ping = scenario "ping" $ do
     writeResult "raw-result" "a sort of result stored as a separate file"
   teardown $ dbg "here we could run some teardown action"
   recover $ \err -> dbg $ "here we could recover from error: " ++ show err
-  analyze $ dbg "analyze action"
+  analyze $ liftIO . print $ "analyze action"
 
 main = defaultMain [ping]
