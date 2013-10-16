@@ -135,7 +135,7 @@ runLabor xs labor =
           runSc         = void . runEnvIO
           loadExisting  = mapM (load defaultBackend) xs' 
           loadAll       = concat <$> mapM (load defaultBackend) xs'
-          loadAndRemove =  loadAll >>= mapM (remove defaultBackend)
+          loadAndRemove = loadAll >>= mapM (remove defaultBackend)
           execAll       = forM_ xs' $ executeExhaustive defaultBackend
           execRemaining = forM_ xs' $ executeMissing defaultBackend
            
