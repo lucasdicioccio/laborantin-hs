@@ -115,6 +115,9 @@ filterDescriptions :: DescriptionQuery -> [ScenarioDescription m] -> [ScenarioDe
 filterDescriptions (ScenarioName []) xs = xs
 filterDescriptions (ScenarioName ns) xs = filter ((flip elem ns) . sName) xs
 
+filterExecutions :: ExecutionQuery -> [Execution m] -> [Execution m]
+filterExecutions query = filter (matchQuery query . eParamSet)
+
 matchQuery :: ExecutionQuery -> ParameterSet -> Bool
 matchQuery m params = all id $ map snd $ M.toList $ M.intersectionWith elem params m
 
@@ -122,20 +125,18 @@ runLabor :: [ScenarioDescription EnvIO] -> Labor -> IO ()
 runLabor xs labor =
     case labor of
     (Describe scii)                 -> forM_ xs' (putStrLn . describeScenario)
+    Find {}                         -> do (execs,_) <- runEnvIO loadMatching
+                                          mapM_ (putStrLn . describeExecution) execs
     (Rm {})                         -> runSc loadAndRemove
     (Run { continue = False })      -> runSc execAll
     (Run { continue = True })       -> runSc execRemaining
-    Find {}                         -> do
-        (results,_) <- runEnvIO loadExisting
-        let execs = filter (matchQuery query . eParamSet) $ concat results 
-        mapM_ (putStrLn . describeExecution) execs
 
     where xs'           = filterDescriptions (ScenarioName $ scenarii labor) xs
           query         = paramsToQuery $ params labor
           runSc         = void . runEnvIO
-          loadExisting  = mapM (load defaultBackend) xs' 
           loadAll       = concat <$> mapM (load defaultBackend) xs'
-          loadAndRemove = loadAll >>= mapM (remove defaultBackend)
+          loadMatching  = filterExecutions query <$> loadAll
+          loadAndRemove = loadMatching >>= mapM (remove defaultBackend)
           execAll       = forM_ xs' $ executeExhaustive defaultBackend
           execRemaining = forM_ xs' $ executeMissing defaultBackend
            
