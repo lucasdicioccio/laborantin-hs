@@ -3,6 +3,7 @@
 module Laborantin.CLI (defaultMain) where
 
 import Control.Monad
+import Control.Applicative
 import Control.Monad.IO.Class
 import Laborantin
 import Laborantin.Types
@@ -118,19 +119,23 @@ matchQuery :: ExecutionQuery -> ParameterSet -> Bool
 matchQuery m params = all id $ map snd $ M.toList $ M.intersectionWith elem params m
 
 runLabor :: [ScenarioDescription EnvIO] -> Labor -> IO ()
-runLabor xs (Describe scii)   =  forM_ xs' (putStrLn . describeScenario)
-    where xs' = filterDescriptions (ScenarioName scii) xs
-runLabor xs fi@(Rm {})         =  void $ runEnvIO (mapM (load defaultBackend) xs' >>= mapM (remove defaultBackend) . concat)
-    where xs' = filterDescriptions (ScenarioName $ scenarii fi) xs
-runLabor xs r@(Run { continue = False }) = do
-    void . runEnvIO . forM_ xs' $ executeExhaustive defaultBackend
-    where xs' = filterDescriptions (ScenarioName $ scenarii r) xs
-runLabor xs r@(Run { continue = True }) = do
-    void . runEnvIO . forM_ xs' $ executeMissing defaultBackend
-    where xs' = filterDescriptions (ScenarioName $ scenarii r) xs
-runLabor xs fi@(Find {})       =  do
-    results <- (runEnvIO $ mapM (load defaultBackend) xs')
-    let execs = filter (matchQuery query . eParamSet) $ concat $ fst results 
-    mapM_ (putStrLn . describeExecution) execs
-    where xs' = filterDescriptions (ScenarioName $ scenarii fi) xs
-          query = paramsToQuery $ params fi
+runLabor xs labor =
+    case labor of
+    (Describe scii)                 -> forM_ xs' (putStrLn . describeScenario)
+    (Rm {})                         -> runSc loadAndRemove
+    (Run { continue = False })      -> runSc execAll
+    (Run { continue = True })       -> runSc execRemaining
+    Find {}                         -> do
+        (results,_) <- runEnvIO loadExisting
+        let execs = filter (matchQuery query . eParamSet) $ concat results 
+        mapM_ (putStrLn . describeExecution) execs
+
+    where xs'           = filterDescriptions (ScenarioName $ scenarii labor) xs
+          query         = paramsToQuery $ params labor
+          runSc         = void . runEnvIO
+          loadExisting  = mapM (load defaultBackend) xs' 
+          loadAll       = concat <$> mapM (load defaultBackend) xs'
+          loadAndRemove =  loadAll >>= mapM (remove defaultBackend)
+          execAll       = forM_ xs' $ executeExhaustive defaultBackend
+          execRemaining = forM_ xs' $ executeMissing defaultBackend
+           
