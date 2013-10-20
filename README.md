@@ -115,8 +115,9 @@ open-source: use it, fork it, or clone it.
 
 # TODO
 
-* in defaultMain
-	- prepare a logger for analyze command
-    - move parameter querying out of CLI module
+* standalone query expression module
 * use Text rather than String where appropriate
-* dependency annotations
+* dependency type with annotations to execute missing dependencies
+* dumb dependency solver
+* selector to load prior results
+* "require" helper that sets a dep+selection
