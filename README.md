@@ -121,3 +121,4 @@ open-source: use it, fork it, or clone it.
 * dumb dependency solver
 * selector to load prior results
 * "require" helper that sets a dep+selection
+* exports to propose exported files using "show-exports" command
