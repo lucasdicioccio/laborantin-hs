@@ -10,6 +10,7 @@ module Laborantin.Implementation (
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Lazy.Char8 as C
 import Laborantin.Types
 import Data.Aeson (decode,encode,FromJSON,parseJSON,(.:),ToJSON,toJSON,(.=),object)
 import qualified Data.Aeson as A
@@ -101,21 +102,17 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
                     putStrLn $ advertise exec
                     return [h1,h2]
                   return (exec, \_ -> liftIO $ forM_ handles close)
-                  where advertise exec = unlines $ map ($ exec) [show. sName . eScenario
-                                                , show . eParamSet
-                                                , ePath]
         finalize  exec finalizer = do
                             finalizer exec
-                            liftIO . putStrLn $ "done"
+                            liftIO . putStrLn $ "execution finished\n"
                             liftIO $ BSL.writeFile (rundir ++ "/execution.json") (encode exec)
                             where rundir = ePath exec
         setup             = callHooks "setup" . eScenario
         run               = callHooks "run" . eScenario
         teardown          = callHooks "teardown" . eScenario
-        analyze           = callHooks "analyze" . eScenario
+        analyze exec      = liftIO (putStrLn $ advertise exec) >> callHooks "analyze" (eScenario exec)
         recover err exec  = unAction (doRecover err)
                             where doRecover = fromMaybe (\_ -> Action $ return ()) (sRecoveryAction $ eScenario exec) 
-        callHooks key sc  = maybe (error $ "no such hook: " ++ key) unAction (M.lookup key $ sHooks sc)
         result exec       = return . defaultResult exec
 
         load :: ScenarioDescription EnvIO -> EnvIO [Execution EnvIO]
@@ -131,6 +128,12 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
                     where forStored (Stored params path status) = Exec sc params path status
         log exec          = return $ defaultLog exec
         rm exec           = liftIO $ removeDirectoryRecursive $ ePath exec
+
+        callHooks key sc  = maybe (error $ "no such hook: " ++ key) unAction (M.lookup key $ sHooks sc)
+        advertise exec    = unlines [ "scenario: " ++ (show . sName . eScenario) exec
+                                    ,   "rundir: " ++ ePath exec
+                                    ,   "json-params: " ++ (C.unpack . encode . eParamSet) exec
+                                    ]
 
 -- | Default result handler for the 'EnvIO' monad (see 'defaultBackend').
 defaultResult :: Execution m -> String -> Result EnvIO
