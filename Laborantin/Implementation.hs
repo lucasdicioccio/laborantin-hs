@@ -123,22 +123,37 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
 
         callHooks key sc  = maybe (error $ "no such hook: " ++ key) unAction (M.lookup key $ sHooks sc)
         advertise exec    = unlines [ "scenario: " ++ (show . sName . eScenario) exec
-                                    ,   "rundir: " ++ ePath exec
-                                    ,   "json-params: " ++ (C.unpack . encode . eParamSet) exec
+                                    , "rundir: " ++ ePath exec
+                                    , "json-params: " ++ (C.unpack . encode . eParamSet) exec
                                     ]
 
         load :: [ScenarioDescription EnvIO] -> EnvIO [Execution EnvIO]
-        load scs           = msum $ map f scs
-            where f sc = liftIO $ do
-                    paths <- map ((sName sc ++ "/") ++) . filter notDot <$> getDirectoryContents (sName sc)
-                    mapM (loadOne sc) paths
+        load               = loadExisting
 
-                    where notDot dirname = take 1 dirname /= "."
-                          loadOne sc path = do
-                            stored <- decode <$> BSL.readFile (path ++ "/execution.json")
-                            return $ maybe (error $ "decoding: " ++ path) forStored stored
 
-                            where forStored (Stored params path status _) = Exec sc params path status []
+
+loadExisting :: [ScenarioDescription EnvIO] -> EnvIO [Execution EnvIO]
+loadExisting scs = do
+    concat <$> mapM f scs
+    where f :: ScenarioDescription EnvIO -> EnvIO [Execution EnvIO]
+          f sc = do
+            paths <- map ((sName sc ++ "/") ++) . filter notDot <$> liftIO (getDirectoryContents (sName sc))
+            mapM (loadOne sc scs) paths
+            where notDot dirname = take 1 dirname /= "."
+
+loadOne :: ScenarioDescription EnvIO -> [ScenarioDescription EnvIO] -> String -> EnvIO (Execution EnvIO)
+loadOne sc scs path = do
+  stored <- decode <$> liftIO (BSL.readFile (path ++ "/execution.json"))
+  maybe (error $ "decoding: " ++ path) forStored stored
+  where forStored (Stored params path status pairs) = do
+            Exec sc params path status <$> loadAncestors scs pairs
+
+loadAncestors :: [ScenarioDescription EnvIO] -> [(String, String)] -> EnvIO [Execution EnvIO]
+loadAncestors scs pairs = mapM loadFromPathAndName pairs
+    where loadFromPathAndName :: (String,String) -> EnvIO (Execution EnvIO)
+          loadFromPathAndName (path, name) = do
+            let sc = find ((== name) . sName) scs
+            maybe (error $ "found no scenario for "++path) (\x -> loadOne x scs path) sc
 
 -- | Default result handler for the 'EnvIO' monad (see 'defaultBackend').
 defaultResult :: Execution m -> String -> Result EnvIO
