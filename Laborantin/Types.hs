@@ -80,6 +80,7 @@ data Execution m = Exec {
   , eParamSet :: ParameterSet
   , ePath     :: String
   , eStatus   :: ExecutionStatus
+  , eAncestors   :: [Execution m] 
 } deriving (Show)
 
 data StoredExecution = Stored {

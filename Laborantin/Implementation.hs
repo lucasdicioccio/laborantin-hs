@@ -46,10 +46,11 @@ instance ToJSON ExecutionStatus where
     toJSON = toJSON . show
 
 instance ToJSON (Execution a) where
-    toJSON (Exec sc params path status) = object    [ "scenario-name" .= sName sc
+    toJSON (Exec sc params path status es) = object [ "scenario-name" .= sName sc
                                                     , "params" .= params
                                                     , "path" .= path
                                                     , "status" .= status
+                                                    , "ancestors" .= (map toJSON es)
                                                     ] 
 
 instance FromJSON ParameterValue where
@@ -91,7 +92,7 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
         prepare sc params = do
                   uuid <- liftIO (randomIO :: IO UUID)
                   let rundir = intercalate "/" [sName sc, show uuid]
-                  let exec = Exec sc params rundir Running
+                  let exec = Exec sc params rundir Running []
                   handles <- liftIO $ do
                     createDirectoryIfMissing True rundir
                     BSL.writeFile (rundir ++ "/execution.json") (encode exec)
@@ -125,7 +126,7 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
                     exec' <- liftM forStored . decode <$> BSL.readFile (path ++ "/execution.json")
                     maybe (error $ "decoding: " ++ path) return exec'
 
-                    where forStored (Stored params path status) = Exec sc params path status
+                    where forStored (Stored params path status) = Exec sc params path status []
         log exec          = return $ defaultLog exec
         rm exec           = liftIO $ removeDirectoryRecursive $ ePath exec
 
