@@ -87,6 +87,7 @@ data StoredExecution = Stored {
     seParamSet :: ParameterSet
   , sePath     :: String
   , seStatus   :: ExecutionStatus
+  , seAncestors :: [(String, String)]
 } deriving (Show)
 
 expandValue :: ParameterValue -> [ParameterValue]
@@ -109,7 +110,7 @@ data Backend m = Backend {
   , bAnalyze   :: Execution m -> Step m ()
   , bRecover   :: ExecutionError -> Execution m -> Step m ()
   , bResult    :: Execution m -> String -> Step m (Result m)
-  , bLoad      :: ScenarioDescription m -> m [Execution m]
+  , bLoad      :: [ScenarioDescription m] -> m [Execution m]
   , bLogger    :: Execution m -> Step m (LogHandler m)
   , bRemove    :: Execution m -> m ()
 }

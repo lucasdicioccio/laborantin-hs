@@ -52,6 +52,8 @@ instance ToJSON (Execution a) where
                                                     , "status" .= status
                                                     , "ancestors" .= (map toJSON es)
                                                     ] 
+                                             where ancestors = map f es
+                                                   f x = toJSON (ePath x, sName $ eScenario x)
 
 instance FromJSON ParameterValue where
     parseJSON (A.Object v) = (v .: "type") >>= match
@@ -71,7 +73,8 @@ instance FromJSON StoredExecution where
     parseJSON (A.Object v) = Stored <$>
                                v .: "params" <*>
                                v .: "path" <*>
-                               v .: "status"
+                               v .: "status" <*>
+                               v .: "ancestors"
     parseJSON _          = mzero
 
 -- | Default backend for the 'EnvIO' monad.  This backend uses the filesystem
@@ -115,18 +118,6 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
         recover err exec  = unAction (doRecover err)
                             where doRecover = fromMaybe (\_ -> Action $ return ()) (sRecoveryAction $ eScenario exec) 
         result exec       = return . defaultResult exec
-
-        load :: ScenarioDescription EnvIO -> EnvIO [Execution EnvIO]
-        load sc           = liftIO $ do
-            dirs <- filter notDot <$> getDirectoryContents (sName sc)
-            let paths = map ((sName sc ++ "/") ++) dirs
-            mapM loadOne paths
-            where notDot dirname = take 1 dirname /= "."
-                  loadOne path = do
-                    exec' <- liftM forStored . decode <$> BSL.readFile (path ++ "/execution.json")
-                    maybe (error $ "decoding: " ++ path) return exec'
-
-                    where forStored (Stored params path status) = Exec sc params path status []
         log exec          = return $ defaultLog exec
         rm exec           = liftIO $ removeDirectoryRecursive $ ePath exec
 
@@ -135,6 +126,19 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
                                     ,   "rundir: " ++ ePath exec
                                     ,   "json-params: " ++ (C.unpack . encode . eParamSet) exec
                                     ]
+
+        load :: [ScenarioDescription EnvIO] -> EnvIO [Execution EnvIO]
+        load scs           = msum $ map f scs
+            where f sc = liftIO $ do
+                    paths <- map ((sName sc ++ "/") ++) . filter notDot <$> getDirectoryContents (sName sc)
+                    mapM (loadOne sc) paths
+
+                    where notDot dirname = take 1 dirname /= "."
+                          loadOne sc path = do
+                            stored <- decode <$> BSL.readFile (path ++ "/execution.json")
+                            return $ maybe (error $ "decoding: " ++ path) forStored stored
+
+                            where forStored (Stored params path status _) = Exec sc params path status []
 
 -- | Default result handler for the 'EnvIO' monad (see 'defaultBackend').
 defaultResult :: Execution m -> String -> Result EnvIO

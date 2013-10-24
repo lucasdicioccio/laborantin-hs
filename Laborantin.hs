@@ -37,14 +37,14 @@ executeExhaustive b sc = mapM_ f $ paramSets $ sParams sc
 
 executeMissing :: (MonadIO m) => Backend m -> ScenarioDescription m -> m ()
 executeMissing b sc = do
-    execs <- load b sc
+    execs <- load b [sc]
     let successful = filter ((== Success) . eStatus) execs
     let exhaustive = S.fromList $ paramSets (sParams sc)
     let existing = S.fromList $ map eParamSet successful
     mapM_ f $ S.toList (exhaustive `S.difference` existing)
     where f = execute b sc
 
-load :: (MonadIO m) => Backend m -> ScenarioDescription m -> m [Execution m]
+load :: (MonadIO m) => Backend m -> [ScenarioDescription m] -> m [Execution m]
 load = bLoad
 
 remove :: (MonadIO m) => Backend m -> Execution m -> m ()
