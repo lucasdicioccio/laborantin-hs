@@ -149,11 +149,11 @@ loadOne sc scs path = do
             Exec sc params path status <$> loadAncestors scs pairs
 
 loadAncestors :: [ScenarioDescription EnvIO] -> [(String, String)] -> EnvIO [Execution EnvIO]
-loadAncestors scs pairs = mapM loadFromPathAndName pairs
-    where loadFromPathAndName :: (String,String) -> EnvIO (Execution EnvIO)
+loadAncestors scs pairs = catMaybes <$> mapM loadFromPathAndName pairs
+    where loadFromPathAndName :: (String,String) -> EnvIO (Maybe (Execution EnvIO))
           loadFromPathAndName (path, name) = do
             let sc = find ((== name) . sName) scs
-            maybe (error $ "found no scenario for "++path) (\x -> loadOne x scs path) sc
+            maybe (return Nothing) (\x -> Just <$> loadOne x scs path) sc
 
 -- | Default result handler for the 'EnvIO' monad (see 'defaultBackend').
 defaultResult :: Execution m -> String -> Result EnvIO
