@@ -92,20 +92,7 @@ instance FromJSON StoredExecution where
 defaultBackend :: Backend EnvIO
 defaultBackend = Backend "default EnvIO backend" prepare finalize setup run teardown analyze recover result load log rm
   where prepare :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
-        prepare sc params = do
-                  uuid <- liftIO (randomIO :: IO UUID)
-                  let rundir = intercalate "/" [sName sc, show uuid]
-                  let exec = Exec sc params rundir Running []
-                  handles <- liftIO $ do
-                    createDirectoryIfMissing True rundir
-                    BSL.writeFile (rundir ++ "/execution.json") (encode exec)
-                    updateGlobalLogger (loggerName exec) (setLevel DEBUG)
-                    h1 <- fileHandler (rundir ++ "/execution-log.txt") DEBUG
-                    h2 <- log4jFileHandler (rundir ++ "/execution-log.xml") DEBUG
-                    forM_ [h1,h2] (updateGlobalLogger (loggerName exec) . addHandler)
-                    putStrLn $ advertise exec
-                    return [h1,h2]
-                  return (exec, \_ -> liftIO $ forM_ handles close)
+        prepare = prepareNewScenario
         finalize  exec finalizer = do
                             finalizer exec
                             liftIO . putStrLn $ "execution finished\n"
@@ -122,15 +109,31 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
         rm exec           = liftIO $ removeDirectoryRecursive $ ePath exec
 
         callHooks key sc  = maybe (error $ "no such hook: " ++ key) unAction (M.lookup key $ sHooks sc)
-        advertise exec    = unlines [ "scenario: " ++ (show . sName . eScenario) exec
-                                    , "rundir: " ++ ePath exec
-                                    , "json-params: " ++ (C.unpack . encode . eParamSet) exec
-                                    ]
 
         load :: [ScenarioDescription EnvIO] -> EnvIO [Execution EnvIO]
         load               = loadExisting
 
+advertise :: Execution m -> String
+advertise exec = unlines [ "scenario: " ++ (show . sName . eScenario) exec
+                         , "rundir: " ++ ePath exec
+                         , "json-params: " ++ (C.unpack . encode . eParamSet) exec
+                         ]
 
+prepareNewScenario :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
+prepareNewScenario  sc params = do
+    uuid <- liftIO (randomIO :: IO UUID)
+    let rundir = intercalate "/" [sName sc, show uuid]
+    let exec = Exec sc params rundir Running []
+    handles <- liftIO $ do
+        createDirectoryIfMissing True rundir
+        BSL.writeFile (rundir ++ "/execution.json") (encode exec)
+        updateGlobalLogger (loggerName exec) (setLevel DEBUG)
+        h1 <- fileHandler (rundir ++ "/execution-log.txt") DEBUG
+        h2 <- log4jFileHandler (rundir ++ "/execution-log.xml") DEBUG
+        forM_ [h1,h2] (updateGlobalLogger (loggerName exec) . addHandler)
+        putStrLn $ advertise exec
+        return [h1,h2]
+    return (exec, \_ -> liftIO $ forM_ handles close)
 
 loadExisting :: [ScenarioDescription EnvIO] -> EnvIO [Execution EnvIO]
 loadExisting scs = do
