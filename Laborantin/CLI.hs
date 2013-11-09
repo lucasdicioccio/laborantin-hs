@@ -92,6 +92,7 @@ instance Attributes Labor where
 
 instance RecordCommand Labor where
     mode_summary _ = "Laborantin command-line interface"
+    run' = error "should not arrive here"
 
 data DescriptionQuery = ScenarioName [String]
     deriving (Show)
