@@ -9,6 +9,7 @@ import Laborantin.DSL
 import Laborantin.Implementation
 import Laborantin.CLI
 import Control.Monad.IO.Class
+import qualified Data.Text as T
 
 {- 
  - Example
@@ -35,7 +36,7 @@ ping = scenario "ping" $ do
     (StringParam srv) <- param "destination"
     case srv of
         "nonexistent" -> err "noooo"
-        str           -> dbg $ "mimic sending ping to " ++ str
+        str           -> dbg $ "mimic sending ping to " ++ (T.unpack str)
     writeResult "raw-result" "a sort of result stored as a separate file"
   teardown $ dbg "here we could run some teardown action"
   recover $ \err -> dbg $ "here we could recover from error: " ++ show err

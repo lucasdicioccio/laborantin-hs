@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, DeriveDataTypeable #-}
 
 module Laborantin.CLI (defaultMain) where
@@ -16,38 +17,41 @@ import Data.Aeson (encode)
 import Data.Maybe (catMaybes)
 import qualified Data.ByteString.Lazy.Char8 as C
 import Data.List.Split (splitOn)
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 defaultMain xs = getArgs >>= dispatchR [] >>= runLabor xs
 
-unlines' :: [String] -> String
-unlines' = intercalate "\n"
+unlines' :: [Text] -> Text
+unlines' = T.intercalate "\n"
 
-describeScenario :: ScenarioDescription m -> String
-describeScenario sc = unlines [
-    "# Scenario: " ++ sName sc
-  , "    " ++ sDesc sc
-  , "    " ++ (show . length . paramSets $ sParams sc) ++ " parameter combinations by default"
+describeScenario :: ScenarioDescription m -> Text
+describeScenario sc = T.unlines [
+    T.append "# Scenario: " (sName sc)
+  , T.append "    " (sDesc sc)
+  , T.concat ["    ", (T.pack . show . length . paramSets $ sParams sc), " parameter combinations by default"]
   , "## Parameters:"
   , unlines' $ paramLines
   ]
   where paramLines = map (uncurry paramLine) pairs
         pairs = M.toList $ sParams sc
         paramLine n p = unlines' [
-                          "### " ++ n
+                          T.append "### " n
                         , describeParameter p
                         ]
 
-describeParameter :: ParameterDescription -> String
+describeParameter :: ParameterDescription -> Text
 describeParameter p = unlines' [
-    "(" ++ pName p ++ ")"
-  , "    " ++ pDesc p
-  , "    " ++ (show . length $ concatMap expandValue $ pValues p) ++ " values:"
-  , unlines $ map (("    - " ++) . show) (pValues p)
+    T.concat ["(", pName p , ")"]
+  , T.concat ["    ", pDesc p]
+  , T.concat ["    ", (T.pack . show . length $ concatMap expandValue $ pValues p), " values:"]
+  , T.pack $ unlines $ map (("    - " ++) . show) (pValues p)
   ]
 
-describeExecution :: Execution m -> String
-describeExecution e = intercalate " " [ ePath e
-                                      , sName (eScenario e)
+describeExecution :: Execution m -> Text
+describeExecution e = T.pack $ intercalate " " [ ePath e
+                                      , T.unpack $ sName (eScenario e)
                                       , "(" ++ show (eStatus e) ++ ")"
                                       , C.unpack $ encode (eParamSet e)
                                       ]
@@ -94,21 +98,24 @@ instance RecordCommand Labor where
     mode_summary _ = "Laborantin command-line interface"
     run' = error "should not arrive here"
 
-data DescriptionQuery = ScenarioName [String]
+data DescriptionQuery = ScenarioName [Text]
     deriving (Show)
 
-type ExecutionQuery = M.Map String [ParameterValue]
+type ExecutionQuery = M.Map Text [ParameterValue]
 
-parseParamQuery :: String -> Maybe (String,[ParameterValue])
-parseParamQuery str = let vals = splitOn ":" str in
+parseParamQuery :: Text -> Maybe (Text,[ParameterValue])
+parseParamQuery str = let vals = T.splitOn ":" str in
     case vals of
-    [k,"int",v]      -> Just (k, [NumberParam . toRational $ read v])
-    [k,"double",v]   -> Just (k, [NumberParam . toRational $ (read v :: Double)])
-    [k,"rational",v] -> Just (k, [NumberParam $ read v])
+    [k,"int",v]      -> Just (k, [NumberParam . toRational $ unsafeReadText v])
+    [k,"double",v]   -> Just (k, [NumberParam . toRational $ (unsafeReadText v :: Double)])
+    [k,"rational",v] -> Just (k, [NumberParam $ unsafeReadText v])
     [k,"str",v]      -> Just (k, [StringParam v])
     _                -> Nothing
 
-paramsToQuery :: [String] -> ExecutionQuery
+    where   unsafeReadText :: (Read a) => Text -> a 
+            unsafeReadText = read . T.unpack
+
+paramsToQuery :: [Text] -> ExecutionQuery
 paramsToQuery xs = let pairs = catMaybes (map parseParamQuery xs) in
     M.fromListWith (++) pairs
 
@@ -125,16 +132,16 @@ matchQuery m params = all id $ map snd $ M.toList $ M.intersectionWith elem para
 runLabor :: [ScenarioDescription EnvIO] -> Labor -> IO ()
 runLabor xs labor =
     case labor of
-    (Describe scii)                 -> forM_ xs' (putStrLn . describeScenario)
+    (Describe scii)                 -> forM_ xs' (T.putStrLn . describeScenario)
     Find {}                         -> do (execs,_) <- runEnvIO loadMatching
-                                          mapM_ (putStrLn . describeExecution) execs
+                                          mapM_ (T.putStrLn . describeExecution) execs
     (Rm {})                         -> runSc loadAndRemove
     (Run { continue = False })      -> runSc execAll
     (Run { continue = True })       -> runSc execRemaining
     Analyze {}                      -> runSc loadAndAnalyze
 
-    where xs'           = filterDescriptions (ScenarioName $ scenarii labor) xs
-          query         = paramsToQuery $ params labor
+    where xs'           = filterDescriptions (ScenarioName $ map T.pack $ scenarii labor) xs
+          query         = paramsToQuery $ map T.pack $ params labor
           runSc         = void . runEnvIO
           loadAll       = load defaultBackend xs'
           loadMatching  = filterExecutions query <$> loadAll
