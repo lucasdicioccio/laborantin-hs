@@ -117,7 +117,6 @@ open-source: use it, fork it, or clone it.
 
 * save timing of scenario executions in default backend
 * standalone query expression module
-* use Text rather than String where appropriate
 * dependency type with annotations to execute missing dependencies
 * dumb dependency solver
 * selector to load prior results
