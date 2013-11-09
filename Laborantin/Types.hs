@@ -24,6 +24,7 @@ module Laborantin.Types (
 ) where
 
 import qualified Data.Map as M
+import System.Time (ClockTime)
 import Control.Monad.Reader
 import Control.Monad.Error
 import Data.Dynamic
@@ -83,6 +84,7 @@ data Execution m = Exec {
   , ePath     :: FilePath
   , eStatus   :: ExecutionStatus
   , eAncestors   :: [Execution m] 
+  , eTimeStamps :: (ClockTime,ClockTime)
 } deriving (Show)
 
 data StoredExecution = Stored {
@@ -90,6 +92,7 @@ data StoredExecution = Stored {
   , sePath     :: FilePath
   , seStatus   :: ExecutionStatus
   , seAncestors :: [(FilePath,Text)]
+  , seTimeStamps :: (ClockTime,ClockTime)
 } deriving (Show)
 
 expandValue :: ParameterValue -> [ParameterValue]

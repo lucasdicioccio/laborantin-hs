@@ -115,7 +115,6 @@ open-source: use it, fork it, or clone it.
 
 # TODO
 
-* save timing of scenario executions in default backend
 * standalone query expression module
 * dependency type with annotations to execute missing dependencies
 * dumb dependency solver

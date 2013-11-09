@@ -29,6 +29,7 @@ import System.Log.Logger
 import System.Log.Handler (close)
 import System.Log.Handler.Simple
 import System.Log.Handler.Log4jXML
+import System.Time (ClockTime(TOD),getClockTime)
 
 -- | Default monad for 'defaultBackend'.
 --   EnvIO carries a 'DynEnv' in a state and allows you to perform IO actions.
@@ -47,12 +48,19 @@ instance ToJSON ParameterValue where
 instance ToJSON ExecutionStatus where
     toJSON = toJSON . show
 
+instance ToJSON ClockTime where
+    toJSON (TOD secs ps) = object [ "sec" .= secs
+                                  , "ps" .= ps
+                                  , "zero" .= ("epoch" :: String)
+                                  ]
+
 instance ToJSON (Execution a) where
-    toJSON (Exec sc params path status es) = object [ "scenario-name" .= sName sc
+    toJSON (Exec sc params path status es tsts) = object [ "scenario-name" .= sName sc
                                                     , "params" .= params
                                                     , "path" .= path
                                                     , "status" .= status
                                                     , "ancestors" .= (map toJSON es)
+                                                    , "timestamps" .= tsts
                                                     ] 
                                              where ancestors = map f es
                                                    f x = toJSON (ePath x, sName $ eScenario x)
@@ -71,12 +79,17 @@ instance FromJSON ExecutionStatus where
     parseJSON (A.String txt) = return $ read $ T.unpack txt
     parseJSON _ = mzero
 
+instance FromJSON ClockTime where
+    parseJSON (A.Object v) = TOD <$> v .: "sec" <*> v .: "ps"
+    parseJSON _ = mzero
+
 instance FromJSON StoredExecution where
     parseJSON (A.Object v) = Stored <$>
                                v .: "params" <*>
                                v .: "path" <*>
                                v .: "status" <*>
-                               v .: "ancestors"
+                               v .: "ancestors" <*>
+                               v .: "timestamps"
     parseJSON _          = mzero
 
 -- | Default backend for the 'EnvIO' monad.  This backend uses the filesystem
@@ -123,9 +136,12 @@ advertise exec = T.pack $ unlines [ "scenario: " ++ (show . sName . eScenario) e
 
 prepareNewScenario :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
 prepareNewScenario  sc params = do
-    uuid <- liftIO (randomIO :: IO UUID)
+    (now,uuid) <- liftIO $ do
+                now <- getClockTime
+                id <- randomIO :: IO UUID
+                return (now,id)
     let rundir = intercalate "/" [T.unpack (sName sc), show uuid]
-    let exec = Exec sc params rundir Running []
+    let exec = Exec sc params rundir Running [] (now,now)
     handles <- liftIO $ do
         createDirectoryIfMissing True rundir
         BSL.writeFile (rundir ++ "/execution.json") (encode exec)
@@ -134,6 +150,7 @@ prepareNewScenario  sc params = do
         h2 <- log4jFileHandler (rundir ++ "/execution-log.xml") DEBUG
         forM_ [h1,h2] (updateGlobalLogger (loggerName exec) . addHandler)
         T.putStrLn $ advertise exec
+        now <- getClockTime
         return [h1,h2]
     return (exec, \_ -> liftIO $ forM_ handles close)
 
@@ -151,8 +168,9 @@ loadOne :: ScenarioDescription EnvIO -> [ScenarioDescription EnvIO] -> FilePath 
 loadOne sc scs path = do
   stored <- decode <$> liftIO (BSL.readFile (path ++ "/execution.json"))
   maybe (error $ "decoding: " ++ path) forStored stored
-  where forStored (Stored params path status pairs) = do
-            Exec sc params path status <$> loadAncestors scs pairs
+  where forStored (Stored params path status pairs tsts) = do
+            ancestors <- loadAncestors scs pairs
+            return $ Exec sc params path status ancestors tsts
 
 loadAncestors :: [ScenarioDescription EnvIO] -> [(FilePath,Text)] -> EnvIO [Execution EnvIO]
 loadAncestors scs pairs = catMaybes <$> mapM loadFromPathAndName pairs
