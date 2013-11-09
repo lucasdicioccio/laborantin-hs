@@ -110,8 +110,10 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
         prepare = prepareNewScenario
         finalize  exec finalizer = do
                             finalizer exec
+                            now <- liftIO $ getClockTime
+                            let exec' = updateCompletionTime exec now
                             liftIO . putStrLn $ "execution finished\n"
-                            liftIO $ BSL.writeFile (rundir ++ "/execution.json") (encode exec)
+                            liftIO $ BSL.writeFile (rundir ++ "/execution.json") (encode exec')
                             where rundir = ePath exec
         setup             = callHooks "setup" . eScenario
         run               = callHooks "run" . eScenario
@@ -127,6 +129,10 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
 
         load :: [ScenarioDescription EnvIO] -> EnvIO [Execution EnvIO]
         load               = loadExisting
+
+updateCompletionTime :: Execution m -> ClockTime -> Execution m
+updateCompletionTime exec t1 = exec {eTimeStamps = (t0,t1)}  
+    where t0 = fst $ eTimeStamps exec
 
 advertise :: Execution m -> Text
 advertise exec = T.pack $ unlines [ "scenario: " ++ (show . sName . eScenario) exec
