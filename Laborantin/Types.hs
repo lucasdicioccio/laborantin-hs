@@ -27,9 +27,11 @@ import qualified Data.Map as M
 import Control.Monad.Reader
 import Control.Monad.Error
 import Data.Dynamic
+import Data.Text (Text)
+import qualified Data.Text as T
 
-type DynEnv = M.Map String Dynamic
-type ParameterSpace = M.Map String ParameterDescription
+type DynEnv = M.Map Text Dynamic
+type ParameterSpace = M.Map Text ParameterDescription
 data ExecutionError = ExecutionError String
     deriving (Show)
 data AnalysisError = AnalysisError String
@@ -51,26 +53,26 @@ instance Show (ExecutionError -> Action m) where
   show _ = "(Error-recovery action)"
 
 data ScenarioDescription m = SDesc {
-    sName   :: String
-  , sDesc   :: String
+    sName   :: Text
+  , sDesc   :: Text
   , sParams :: ParameterSpace
-  , sHooks  :: M.Map String (Action m)
+  , sHooks  :: M.Map Text (Action m)
   , sRecoveryAction :: Maybe (ExecutionError -> Action m)
   } deriving (Show)
 
 data ParameterDescription = PDesc {
-    pName   :: String
-  , pDesc   :: String
+    pName   :: Text
+  , pDesc   :: Text
   , pValues :: [ParameterValue]
   } deriving (Show,Eq,Ord)
 
-data ParameterValue = StringParam String 
+data ParameterValue = StringParam Text 
   | NumberParam Rational
   | Array [ParameterValue]
   | Range Rational Rational Rational -- [from, to], by increment
   deriving (Show,Eq,Ord)
 
-type ParameterSet = M.Map String ParameterValue
+type ParameterSet = M.Map Text ParameterValue
 
 data ExecutionStatus = Running | Success | Failure 
   deriving (Show,Read,Eq)
@@ -78,16 +80,16 @@ data ExecutionStatus = Running | Success | Failure
 data Execution m = Exec {
     eScenario :: ScenarioDescription m
   , eParamSet :: ParameterSet
-  , ePath     :: String
+  , ePath     :: FilePath
   , eStatus   :: ExecutionStatus
   , eAncestors   :: [Execution m] 
 } deriving (Show)
 
 data StoredExecution = Stored {
     seParamSet :: ParameterSet
-  , sePath     :: String
+  , sePath     :: FilePath
   , seStatus   :: ExecutionStatus
-  , seAncestors :: [(String, String)]
+  , seAncestors :: [(FilePath,Text)]
 } deriving (Show)
 
 expandValue :: ParameterValue -> [ParameterValue]
@@ -101,7 +103,7 @@ paramSets ps = map M.fromList $ sequence possibleValues
 type Finalizer m = Execution m -> m ()
 
 data Backend m = Backend {
-    bName      :: String
+    bName      :: Text
   , bPrepareExecution  :: ScenarioDescription m -> ParameterSet -> m (Execution m,Finalizer m)
   , bFinalizeExecution :: Execution m -> Finalizer m -> m ()
   , bSetup     :: Execution m -> Step m ()
@@ -109,17 +111,17 @@ data Backend m = Backend {
   , bTeardown  :: Execution m -> Step m ()
   , bAnalyze   :: Execution m -> Step m ()
   , bRecover   :: ExecutionError -> Execution m -> Step m ()
-  , bResult    :: Execution m -> String -> Step m (Result m)
+  , bResult    :: Execution m -> FilePath -> Step m (Result m)
   , bLoad      :: [ScenarioDescription m] -> m [Execution m]
   , bLogger    :: Execution m -> Step m (LogHandler m)
   , bRemove    :: Execution m -> m ()
 }
 
 data Result m = Result {
-    pPath   :: String
-  , pRead   :: Step m String
-  , pAppend :: String -> Step m ()
-  , pWrite  :: String -> Step m ()
+    pPath   :: FilePath
+  , pRead   :: Step m Text
+  , pAppend :: Text -> Step m ()
+  , pWrite  :: Text -> Step m ()
 }
 
 newtype LogHandler m = LogHandler { lLog :: String -> Step m () }
