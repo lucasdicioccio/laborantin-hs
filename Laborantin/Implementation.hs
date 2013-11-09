@@ -172,7 +172,7 @@ defaultResult exec basename = Result path read append write
 -- | Default logger for the 'EnvIO' monad (see 'defaultBackend').
 defaultLog :: Execution m -> LogHandler EnvIO
 defaultLog exec = LogHandler logF
-    where logF msg = liftIO $ debugM (loggerName exec) msg
+    where logF txt = liftIO $ debugM (loggerName exec) (T.unpack txt)
           path = ePath exec ++ "/execution.log"
 
 loggerName :: Execution m -> String

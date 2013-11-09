@@ -36,10 +36,10 @@ ping = scenario "ping" $ do
     (StringParam srv) <- param "destination"
     case srv of
         "nonexistent" -> err "noooo"
-        str           -> dbg $ "mimic sending ping to " ++ (T.unpack str)
+        str           -> dbg $ T.append "mimic sending ping to " str
     writeResult "raw-result" "a sort of result stored as a separate file"
   teardown $ dbg "here we could run some teardown action"
-  recover $ \err -> dbg $ "here we could recover from error: " ++ show err
+  recover $ \err -> dbg $ T.append "here we could recover from error: " (T.pack $ show err)
   analyze $ liftIO . print $ "analyze action"
 
 main = defaultMain [ping]

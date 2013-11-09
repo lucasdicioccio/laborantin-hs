@@ -124,4 +124,4 @@ data Result m = Result {
   , pWrite  :: Text -> Step m ()
 }
 
-newtype LogHandler m = LogHandler { lLog :: String -> Step m () }
+newtype LogHandler m = LogHandler { lLog :: Text -> Step m () }

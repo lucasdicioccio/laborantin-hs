@@ -137,7 +137,7 @@ logger :: Monad m => Step m (LogHandler m)
 logger = ask >>= uncurry bLogger
 
 -- | Sends a line of data to the logger (debug mode)
-dbg :: Monad m => String -> Step m ()
+dbg :: Monad m => Text -> Step m ()
 dbg msg = logger >>= flip lLog msg
 
 -- | Interrupts the scenario by throwing an error
