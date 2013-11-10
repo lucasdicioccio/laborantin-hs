@@ -147,6 +147,7 @@ data QExpr :: * -> * where
     Eq          :: (Show a, Eq a)  => QExpr a -> QExpr a -> QExpr Bool
     Gt          :: (Show a, Ord a) => QExpr a -> QExpr a -> QExpr Bool
     ScName      :: QExpr Text
+    ScStatus    :: QExpr Text
     ScParam     :: Text -> QExpr (Text, Maybe ParameterValue)
     SCoerce     :: QExpr (Text, Maybe ParameterValue) -> QExpr Text
     NCoerce     :: QExpr (Text, Maybe ParameterValue) -> QExpr Rational

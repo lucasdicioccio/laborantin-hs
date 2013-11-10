@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, DeriveDataTypeable #-}
 
@@ -9,6 +10,7 @@ import Control.Monad.IO.Class
 import Laborantin
 import Laborantin.Types
 import Laborantin.Implementation
+import Laborantin.Query
 import System.Environment
 import System.Console.CmdLib hiding (run)
 import qualified Data.Map as M
@@ -59,9 +61,10 @@ describeExecution e = T.pack $ intercalate " " [ ePath e
 
 data Labor = Run        { scenarii   :: [String] , params :: [String] , continue :: Bool} 
            | Describe   { scenarii   :: [String] } 
-           | Find       { scenarii   :: [String] , params :: [String] } 
-           | Analyze    { scenarii   :: [String] , params :: [String] } 
-           | Rm         { scenarii   :: [String] , params :: [String] , force :: Bool , failed :: Bool , successful :: Bool} 
+           | Find       { scenarii   :: [String] , params :: [String] , successful :: Bool} 
+           | Analyze    { scenarii   :: [String] , params :: [String] , successful :: Bool} 
+           | Rm         { scenarii   :: [String] , params :: [String] , successful :: Bool} 
+           | Query      { scenarii   :: [String] , params :: [String] , successful :: Bool} 
     deriving (Typeable, Data, Show, Eq)
 
 instance Attributes Labor where
@@ -82,15 +85,10 @@ instance Attributes Labor where
                                     , Invertible True
                                     , Help "Continue execution (skip known)"
                                     ]
-                    ,   force    %> [ Short "f"
-                                    , Long ["force"]
-                                    , Help "Force flag"
-                                    ]
-                    ,   failed   %> [ Long ["failed"]
-                                    , Help "Failed only"
-                                    ]
                     ,   successful %> [ Long ["successful"]
                                     , Help "Successful only"
+                                    , Invertible True
+                                    , Default True
                                     ]
                     ]
 
@@ -104,7 +102,9 @@ data DescriptionQuery = ScenarioName [Text]
 parseParamQuery :: Text -> Maybe (QExpr Bool)
 parseParamQuery str = let vals = T.splitOn ":" str in
     case vals of
+    [k,"ratio",v]    -> Just (Eq (NCoerce (ScParam k)) (N $ unsafeReadText v))
     [k,"int",v]      -> Just (Eq (NCoerce (ScParam k)) (N . toRational $ unsafeReadText v))
+    [k,"float",v]    -> Just (Eq (NCoerce (ScParam k)) (N $ toRational (unsafeReadText v :: Float)))
     [k,"str",v]      -> Just (Eq (SCoerce (ScParam k)) (S v))
     _                -> Nothing
 
@@ -115,9 +115,23 @@ paramsToQuery :: [Text] -> QExpr Bool
 paramsToQuery xs = let atoms = catMaybes (map parseParamQuery xs) in
   conjunctionQueries atoms
 
+-- if no scenario: True, otherwise any of the scenarios
+scenarsToQuery :: [Text] -> QExpr Bool
+scenarsToQuery [] = B True
+scenarsToQuery scii = let atoms = map (\name -> (Eq ScName (S name))) scii in
+    disjunctionQueries atoms
+
+statusToQuery :: Bool -> QExpr Bool
+statusToQuery True  =     (Eq ScStatus (S "success"))
+statusToQuery False = Not (Eq ScStatus (S "success"))
+
 conjunctionQueries :: [QExpr Bool] -> QExpr Bool
 conjunctionQueries []     = B True
 conjunctionQueries (q:qs) = And q (conjunctionQueries qs)
+
+disjunctionQueries :: [QExpr Bool] -> QExpr Bool
+disjunctionQueries []     = B False
+disjunctionQueries (q:qs) = Or q (disjunctionQueries qs)
 
 filterDescriptions :: DescriptionQuery -> [ScenarioDescription m] -> [ScenarioDescription m]
 filterDescriptions (ScenarioName []) xs = xs
@@ -134,13 +148,16 @@ runLabor xs labor =
     (Run { continue = False })      -> runSc execAll
     (Run { continue = True })       -> runSc execRemaining
     Analyze {}                      -> runSc loadAndAnalyze
+    Query {}                        -> putStrLn $ showExpr query
 
     where xs'           = filterDescriptions (ScenarioName $ map T.pack $ scenarii labor) xs
-          query         = paramsToQuery $ map T.pack $ params labor
+          paramsQuery   = paramsToQuery $ map T.pack $ params labor
+          scenarioQuery = scenarsToQuery $ map T.pack $ scenarii labor
+          statusQuery   = statusToQuery $ successful labor
+          !query        = conjunctionQueries [paramsQuery, scenarioQuery, statusQuery]
           runSc         = void . runEnvIO
           loadMatching  = load defaultBackend xs' query
           loadAndRemove = loadMatching >>= mapM (remove defaultBackend)
           loadAndAnalyze= loadMatching >>= mapM (executeAnalysis defaultBackend)
           execAll       = forM_ xs' $ executeExhaustive defaultBackend
           execRemaining = forM_ xs' $ executeMissing defaultBackend
-           

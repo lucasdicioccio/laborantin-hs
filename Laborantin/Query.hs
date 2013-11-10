@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Laborantin.Query where
 
@@ -25,6 +26,9 @@ evalExpr _ (S x)              = Right x
 evalExpr _ (L x)              = Right x
 evalExpr _ (T x)              = Right x
 evalExpr exec ScName          = Right $ sName $ eScenario exec
+evalExpr exec ScStatus | eStatus exec == Success = Right "success"
+                       | eStatus exec == Failure = Right "failure"
+                       | eStatus exec == Running = Right "running"
 evalExpr exec (ScParam key)   = Right $ (key, M.lookup key (eParamSet exec))
 evalExpr x (Not e)            = not <$> evalExpr x e
 evalExpr x (Contains e1 e2)   = elem <$> evalExpr x e1 <*> evalExpr x e2
@@ -53,7 +57,7 @@ showExpr (B x) = show x
 showExpr (S x) = show x
 showExpr (L x) = show x
 showExpr (T x) = show x
-showExpr (Not x)  = "! " ++ showExpr x
+showExpr (Not x)  = "! " ++ "(" ++ showExpr x ++ ")"
 showExpr (And e1 e2)        = "(" ++ showExpr e1 ++ " && " ++ showExpr e2 ++ ")"
 showExpr (Or e1 e2)         = "(" ++ showExpr e1 ++ " || " ++ showExpr e2 ++ ")"
 showExpr (Contains e1 e2)   = "(" ++ showExpr e1 ++ " in " ++ showExpr e2 ++ ")"
@@ -62,6 +66,7 @@ showExpr (Eq e1 e2)         = "(" ++ showExpr e1 ++ " == " ++ showExpr e2 ++ ")"
 showExpr (Plus e1 e2)       = "(" ++ showExpr e1 ++ " + " ++ showExpr e2 ++ ")"
 showExpr (Times e1 e2)      = "(" ++ showExpr e1 ++ " * " ++ showExpr e2 ++ ")"
 showExpr ScName          = "@sc.name"
+showExpr ScStatus        = "@sc.status"
 showExpr (ScParam key)   = "@sc.param:" ++ show key
 showExpr (SCoerce x) = showExpr x
 showExpr (NCoerce x) = showExpr x
