@@ -96,30 +96,25 @@ instance RecordCommand Labor where
 data DescriptionQuery = ScenarioName [String]
     deriving (Show)
 
-type ExecutionQuery = M.Map String [ParameterValue]
-
-parseParamQuery :: String -> Maybe (String,[ParameterValue])
+parseParamQuery :: String -> Maybe (QExpr Bool)
 parseParamQuery str = let vals = splitOn ":" str in
     case vals of
-    [k,"int",v]      -> Just (k, [NumberParam . toRational $ read v])
-    [k,"double",v]   -> Just (k, [NumberParam . toRational $ (read v :: Double)])
-    [k,"rational",v] -> Just (k, [NumberParam $ read v])
-    [k,"str",v]      -> Just (k, [StringParam v])
+    [k,"int",v]      -> Just (Eq (NCoerce (ScParam k)) (N $ toRational $ read v))
+    [k,"str",v]      -> Just (Eq (SCoerce (ScParam k)) (S $ read v))
     _                -> Nothing
 
-paramsToQuery :: [String] -> ExecutionQuery
-paramsToQuery xs = let pairs = catMaybes (map parseParamQuery xs) in
-    M.fromListWith (++) pairs
+paramsToQuery :: [String] -> QExpr Bool
+paramsToQuery xs = let atoms = catMaybes (map parseParamQuery xs) in
+  conjunctionQueries atoms
+
+conjunctionQueries :: [QExpr Bool] -> QExpr Bool
+conjunctionQueries []     = B True
+conjunctionQueries (q:qs) = And q (conjunctionQueries qs)
 
 filterDescriptions :: DescriptionQuery -> [ScenarioDescription m] -> [ScenarioDescription m]
 filterDescriptions (ScenarioName []) xs = xs
 filterDescriptions (ScenarioName ns) xs = filter ((flip elem ns) . sName) xs
 
-filterExecutions :: ExecutionQuery -> [Execution m] -> [Execution m]
-filterExecutions query = filter (matchQuery query . eParamSet)
-
-matchQuery :: ExecutionQuery -> ParameterSet -> Bool
-matchQuery m params = all id $ map snd $ M.toList $ M.intersectionWith elem params m
 
 runLabor :: [ScenarioDescription EnvIO] -> Labor -> IO ()
 runLabor xs labor =
@@ -135,8 +130,7 @@ runLabor xs labor =
     where xs'           = filterDescriptions (ScenarioName $ scenarii labor) xs
           query         = paramsToQuery $ params labor
           runSc         = void . runEnvIO
-          loadAll       = load defaultBackend xs' (B True)
-          loadMatching  = filterExecutions query <$> loadAll
+          loadMatching  = load defaultBackend xs' query
           loadAndRemove = loadMatching >>= mapM (remove defaultBackend)
           loadAndAnalyze= loadMatching >>= mapM (executeAnalysis defaultBackend)
           execAll       = forM_ xs' $ executeExhaustive defaultBackend
