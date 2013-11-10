@@ -95,6 +95,20 @@ data StoredExecution = Stored {
   , seTimeStamps :: (ClockTime,ClockTime)
 } deriving (Show)
 
+data Dependency m = Dep {
+      dName     :: Text
+    , dDec      :: Text
+    , dCheck    :: Execution m -> m Bool
+    , dSolve    :: Execution m -> m ()
+    }
+
+instance Show (Dependency m) where
+    show dep = "Dep {dName="
+                ++ show (dName dep)
+                ++ ", dDesc="
+                ++ show (dDec dep)
+                ++ "}" 
+
 expandValue :: ParameterValue -> [ParameterValue]
 expandValue (Range from to by)  = map NumberParam [from,from+by .. to]
 expandValue x                   = [x]
