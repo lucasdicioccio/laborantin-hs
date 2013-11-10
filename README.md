@@ -115,9 +115,9 @@ open-source: use it, fork it, or clone it.
 
 # TODO
 
-* standalone query expression module
+* QExpr parser
+* selector to load prior results
 * dependency type with annotations to execute missing dependencies
 * dumb dependency solver
-* selector to load prior results
 * "require" helper that sets a dep+selection
 * exports to propose exported files using "show-exports" command

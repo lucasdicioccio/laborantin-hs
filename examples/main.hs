@@ -8,6 +8,7 @@ import Laborantin.Types
 import Laborantin.DSL
 import Laborantin.Implementation
 import Laborantin.CLI
+import Laborantin.Query
 import Control.Monad.IO.Class
 import qualified Data.Text as T
 

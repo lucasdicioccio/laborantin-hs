@@ -101,33 +101,28 @@ instance RecordCommand Labor where
 data DescriptionQuery = ScenarioName [Text]
     deriving (Show)
 
-type ExecutionQuery = M.Map Text [ParameterValue]
-
-parseParamQuery :: Text -> Maybe (Text,[ParameterValue])
+parseParamQuery :: Text -> Maybe (QExpr Bool)
 parseParamQuery str = let vals = T.splitOn ":" str in
     case vals of
-    [k,"int",v]      -> Just (k, [NumberParam . toRational $ unsafeReadText v])
-    [k,"double",v]   -> Just (k, [NumberParam . toRational $ (unsafeReadText v :: Double)])
-    [k,"rational",v] -> Just (k, [NumberParam $ unsafeReadText v])
-    [k,"str",v]      -> Just (k, [StringParam v])
+    [k,"int",v]      -> Just (Eq (NCoerce (ScParam k)) (N . toRational $ unsafeReadText v))
+    [k,"str",v]      -> Just (Eq (SCoerce (ScParam k)) (S v))
     _                -> Nothing
 
     where   unsafeReadText :: (Read a) => Text -> a 
             unsafeReadText = read . T.unpack
 
-paramsToQuery :: [Text] -> ExecutionQuery
-paramsToQuery xs = let pairs = catMaybes (map parseParamQuery xs) in
-    M.fromListWith (++) pairs
+paramsToQuery :: [Text] -> QExpr Bool
+paramsToQuery xs = let atoms = catMaybes (map parseParamQuery xs) in
+  conjunctionQueries atoms
+
+conjunctionQueries :: [QExpr Bool] -> QExpr Bool
+conjunctionQueries []     = B True
+conjunctionQueries (q:qs) = And q (conjunctionQueries qs)
 
 filterDescriptions :: DescriptionQuery -> [ScenarioDescription m] -> [ScenarioDescription m]
 filterDescriptions (ScenarioName []) xs = xs
 filterDescriptions (ScenarioName ns) xs = filter ((flip elem ns) . sName) xs
 
-filterExecutions :: ExecutionQuery -> [Execution m] -> [Execution m]
-filterExecutions query = filter (matchQuery query . eParamSet)
-
-matchQuery :: ExecutionQuery -> ParameterSet -> Bool
-matchQuery m params = all id $ map snd $ M.toList $ M.intersectionWith elem params m
 
 runLabor :: [ScenarioDescription EnvIO] -> Labor -> IO ()
 runLabor xs labor =
@@ -143,8 +138,7 @@ runLabor xs labor =
     where xs'           = filterDescriptions (ScenarioName $ map T.pack $ scenarii labor) xs
           query         = paramsToQuery $ map T.pack $ params labor
           runSc         = void . runEnvIO
-          loadAll       = load defaultBackend xs'
-          loadMatching  = filterExecutions query <$> loadAll
+          loadMatching  = load defaultBackend xs' query
           loadAndRemove = loadMatching >>= mapM (remove defaultBackend)
           loadAndAnalyze= loadMatching >>= mapM (executeAnalysis defaultBackend)
           execAll       = forM_ xs' $ executeExhaustive defaultBackend
