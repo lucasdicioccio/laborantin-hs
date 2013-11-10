@@ -1,37 +1,22 @@
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GADTs #-}
 
 module Laborantin.Query where
 
 import Laborantin.Types
-import System.Time(ClockTime)
 import qualified Data.Map as M
 import Control.Applicative ((<$>),(<*>))
 
-data Expr :: * -> * where
-    N           :: (Show n, Num n) => n -> Expr n
-    B           :: Bool -> Expr Bool
-    S           :: String -> Expr String
-    L           :: (Show a) => [a] -> Expr [a]
-    T           :: ClockTime -> Expr ClockTime
-    Plus        :: (Show n, Num n) => Expr n -> Expr n -> Expr n
-    Times       :: (Show n, Num n) => Expr n -> Expr n -> Expr n
-    And         :: Expr Bool -> Expr Bool -> Expr Bool
-    Or          :: Expr Bool -> Expr Bool -> Expr Bool
-    Not         :: Expr Bool -> Expr Bool
-    Contains    :: (Show a, Eq a)  => Expr a -> Expr [a] -> Expr Bool
-    Eq          :: (Show a, Eq a)  => Expr a -> Expr a -> Expr Bool
-    Gt          :: (Show a, Ord a) => Expr a -> Expr a -> Expr Bool
-    ScName      :: Expr String
-    ScParam     :: String -> Expr (String,Param)
-    SCoerce     :: Expr (String, Param) -> Expr String
-    NCoerce     :: Expr (String, Param) -> Expr Rational
-
 type Param = Maybe ParameterValue
+
 data EvalError = EvalError String
     deriving (Show)
 
-evalExpr :: Execution m -> Expr a -> Either EvalError a
+matchQExpr :: QExpr Bool -> Execution m -> Bool
+matchQExpr e q = match' (evalExpr q e)
+    where match' (Right True) = True
+          match' _            = False
+
+evalExpr :: Execution m -> QExpr a -> Either EvalError a
 evalExpr _ (N x)              = Right x
 evalExpr _ (B x)              = Right x
 evalExpr _ (S x)              = Right x
@@ -58,7 +43,7 @@ coerceNumberParam :: String -> Param -> Either EvalError (Rational)
 coerceNumberParam name (Just (NumberParam r)) = Right r
 coerceNumberParam name _ = Left (EvalError $ "could not coerce "++ name ++" to number")
 
-showExpr :: Expr a -> String
+showExpr :: QExpr a -> String
 showExpr (N x) = show x
 showExpr (B x) = show x
 showExpr (S x) = show x

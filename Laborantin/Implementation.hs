@@ -12,6 +12,7 @@ import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as C
 import Laborantin.Types
+import Laborantin.Query
 import Data.Aeson (decode,encode,FromJSON,parseJSON,(.:),ToJSON,toJSON,(.=),object)
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
@@ -110,7 +111,6 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
 
         callHooks key sc  = maybe (error $ "no such hook: " ++ key) unAction (M.lookup key $ sHooks sc)
 
-        load :: [ScenarioDescription EnvIO] -> EnvIO [Execution EnvIO]
         load               = loadExisting
 
 advertise :: Execution m -> String
@@ -135,13 +135,14 @@ prepareNewScenario  sc params = do
         return [h1,h2]
     return (exec, \_ -> liftIO $ forM_ handles close)
 
-loadExisting :: [ScenarioDescription EnvIO] -> EnvIO [Execution EnvIO]
-loadExisting scs = do
+loadExisting :: [ScenarioDescription EnvIO] -> QExpr Bool -> EnvIO [Execution EnvIO]
+loadExisting scs qexpr = do
     concat <$> mapM f scs
     where f :: ScenarioDescription EnvIO -> EnvIO [Execution EnvIO]
           f sc = do
             paths <- map ((sName sc ++ "/") ++) . filter notDot <$> liftIO (getDirectoryContents (sName sc))
-            mapM (loadOne sc scs) paths
+            allExecs <- mapM (loadOne sc scs) paths
+            return $ filter (matchQExpr qexpr) allExecs
             where notDot dirname = take 1 dirname /= "."
 
 loadOne :: ScenarioDescription EnvIO -> [ScenarioDescription EnvIO] -> String -> EnvIO (Execution EnvIO)

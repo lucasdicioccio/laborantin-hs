@@ -135,7 +135,7 @@ runLabor xs labor =
     where xs'           = filterDescriptions (ScenarioName $ scenarii labor) xs
           query         = paramsToQuery $ params labor
           runSc         = void . runEnvIO
-          loadAll       = load defaultBackend xs'
+          loadAll       = load defaultBackend xs' (B True)
           loadMatching  = filterExecutions query <$> loadAll
           loadAndRemove = loadMatching >>= mapM (remove defaultBackend)
           loadAndAnalyze= loadMatching >>= mapM (executeAnalysis defaultBackend)
