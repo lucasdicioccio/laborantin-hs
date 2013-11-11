@@ -156,7 +156,6 @@ prepareNewScenario  sc params = do
         h2 <- log4jFileHandler (rundir ++ "/execution-log.xml") DEBUG
         forM_ [h1,h2] (updateGlobalLogger (loggerName exec) . addHandler)
         T.putStrLn $ advertise exec
-        now <- getClockTime
         return [h1,h2]
     return (exec, \_ -> liftIO $ forM_ handles close)
 
