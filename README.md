@@ -112,12 +112,15 @@ open-source: use it, fork it, or clone it.
 
 # Roadmap
 
-
-# TODO
+For version 1.
 
 * QExpr parser
-* selector to load prior results
-* dependency type with annotations to execute missing dependencies
-* dumb dependency solver
-* "require" helper that sets a dep+selection
+* Expand QExpr to parameter space (for run command)
+* Selector to load prior results based on a QExpr
+  - "require" helper that sets a dep + selection
 * exports to propose exported files using "show-exports" command
+
+# Annoyances/Bugs
+* current defaultBackend tries to resolve all dependencies even if fullfilled
+* DynEnv shared for the whole runEnvIO, need to have one DynEnv per-execution
+
