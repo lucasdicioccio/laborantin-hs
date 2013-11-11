@@ -121,6 +121,5 @@ For version 1.
 * exports to propose exported files using "show-exports" command
 
 # Annoyances/Bugs
-* current defaultBackend tries to resolve all dependencies even if fullfilled
 * DynEnv shared for the whole runEnvIO, need to have one DynEnv per-execution
 

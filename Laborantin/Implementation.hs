@@ -162,7 +162,9 @@ prepareNewScenario  sc params = do
     return (exec, \_ -> liftIO $ forM_ handles close)
 
 resolveDependencies :: Execution EnvIO -> EnvIO ()
-resolveDependencies exec = resolveDependencies' exec [] (sDeps $ eScenario exec)
+resolveDependencies exec = do
+    pending <- getPendingDeps exec (sDeps $ eScenario exec)
+    resolveDependencies' exec [] pending
 
 resolveDependencies' :: Execution EnvIO -> [Dependency EnvIO] -> [Dependency EnvIO] -> EnvIO ()
 resolveDependencies' exec _ []   = return ()
