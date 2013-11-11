@@ -148,6 +148,8 @@ prepareNewScenario  sc params = do
                 return (now,id)
     let rundir = intercalate "/" [T.unpack (sName sc), show uuid]
     let exec = Exec sc params rundir Running [] (now,now)
+    liftIO $ print "resolving dependencies"
+    resolveDependencies exec
     handles <- liftIO $ do
         createDirectoryIfMissing True rundir
         BSL.writeFile (rundir ++ "/execution.json") (encode exec)
@@ -158,6 +160,20 @@ prepareNewScenario  sc params = do
         T.putStrLn $ advertise exec
         return [h1,h2]
     return (exec, \_ -> liftIO $ forM_ handles close)
+
+resolveDependencies :: Execution EnvIO -> EnvIO ()
+resolveDependencies exec = resolveDependencies' exec [] (sDeps $ eScenario exec)
+
+resolveDependencies' :: Execution EnvIO -> [Dependency EnvIO] -> [Dependency EnvIO] -> EnvIO ()
+resolveDependencies' exec _ []   = return ()
+resolveDependencies' exec attempted trying 
+  | all (\d -> elem d attempted) trying = error "cannot solve dependencies"
+  | otherwise = do
+    mapM (flip dSolve exec) trying
+    pending <- getPendingDeps exec trying
+    resolveDependencies' exec (trying ++ attempted) pending
+
+getPendingDeps exec deps = map fst . filter (not . snd). zip deps <$> mapM (flip dCheck exec) deps
 
 loadExisting :: [ScenarioDescription EnvIO] -> QExpr Bool -> EnvIO [Execution EnvIO]
 loadExisting scs qexpr = do

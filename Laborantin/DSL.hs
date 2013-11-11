@@ -47,7 +47,7 @@ instance Describable ParameterDescription where
 -- | DSL entry point to build a 'ScenarioDescription'.
 scenario :: Text -> State (ScenarioDescription m) () -> ScenarioDescription m
 scenario name f = execState f sc0
-  where sc0 = SDesc name "" M.empty M.empty Nothing
+  where sc0 = SDesc name "" M.empty M.empty Nothing []
 
 -- | Attach a description to the 'Parameter' / 'Scnario'
 describe :: Describable a => Text -> State a ()

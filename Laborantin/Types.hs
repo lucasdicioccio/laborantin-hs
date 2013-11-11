@@ -24,6 +24,7 @@ module Laborantin.Types (
     ,   Action (..)
     ,   DynEnv (..)
     ,   QExpr (..)
+    ,   Dependency (..)
 ) where
 
 import qualified Data.Map as M
@@ -62,6 +63,7 @@ data ScenarioDescription m = SDesc {
   , sParams :: ParameterSpace
   , sHooks  :: M.Map Text (Action m)
   , sRecoveryAction :: Maybe (ExecutionError -> Action m)
+  , sDeps   :: [Dependency m]
   } deriving (Show)
 
 data ParameterDescription = PDesc {
@@ -100,16 +102,19 @@ data StoredExecution = Stored {
 
 data Dependency m = Dep {
       dName     :: Text
-    , dDec      :: Text
+    , dDesc     :: Text
     , dCheck    :: Execution m -> m Bool
     , dSolve    :: Execution m -> m ()
     }
+
+instance Eq (Dependency m) where
+    d1 == d2 = dName d1 == dName d2 && dDesc d1 == dDesc d2
 
 instance Show (Dependency m) where
     show dep = "Dep {dName="
                 ++ show (dName dep)
                 ++ ", dDesc="
-                ++ show (dDec dep)
+                ++ show (dDesc dep)
                 ++ "}" 
 
 expandValue :: ParameterValue -> [ParameterValue]
