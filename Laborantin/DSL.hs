@@ -5,6 +5,9 @@ module Laborantin.DSL (
         scenario
     ,   describe
     ,   parameter
+    ,   dependency
+    ,   check
+    ,   resolve
     ,   values
     ,   str
     ,   num
@@ -44,6 +47,9 @@ instance Describable (ScenarioDescription a) where
 instance Describable ParameterDescription where
   changeDescription d pa = pa { pDesc = d }
 
+instance Describable (Dependency a) where
+  changeDescription d dep = dep { dDesc = d }
+
 -- | DSL entry point to build a 'ScenarioDescription'.
 scenario :: Text -> State (ScenarioDescription m) () -> ScenarioDescription m
 scenario name f = execState f sc0
@@ -59,6 +65,25 @@ parameter name f = modify (addParam name param)
   where addParam k v sc0 = sc0 { sParams = M.insert k v (sParams sc0) }
         param = execState f param0
                 where param0 = PDesc name "" []
+
+-- | DSL entry point to build a 'Dependency a' within a scenario.
+dependency :: (Monad m) => Text -> State (Dependency m) () -> State (ScenarioDescription m) ()
+dependency name f = modify (addDep dep)
+  where addDep v sc0 = sc0 { sDeps = v:(sDeps sc0)}
+        dep = execState f dep0
+              where dep0 = Dep name "" (const (return True)) (const (return ()))
+
+-- | Set verification action for the dependency
+check :: (Execution m -> m Bool) -> State (Dependency m) ()
+check f = do
+  dep0 <- get
+  put $ dep0 { dCheck = f }
+
+-- | Set resolution action for the dependency
+resolve :: (Execution m -> m ()) -> State (Dependency m) ()
+resolve f = do
+  dep0 <- get
+  put $ dep0 { dSolve = f }
 
 -- | Set default values for the paramater
 values :: [ParameterValue] -> State ParameterDescription ()
