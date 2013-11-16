@@ -2,7 +2,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Laborantin.Query where
+module Laborantin.Query (matchTExpr, showTExpr) where
 
 import Laborantin.Types
 import qualified Data.Map as M
@@ -12,7 +12,6 @@ import qualified Data.Text as T
 import Text.Parsec
 import Text.Parsec.Char
 import Text.Parsec.Combinator
-import Text.Parsec.Token
 import Data.Maybe
 
 type Param = Maybe ParameterValue
@@ -20,12 +19,12 @@ type Param = Maybe ParameterValue
 data EvalError = EvalError String
     deriving (Show)
 
-matchQExpr :: QExpr Bool -> Execution m -> Bool
-matchQExpr e q = match' (evalExpr q e)
+matchTExpr :: TExpr Bool -> Execution m -> Bool
+matchTExpr e q = match' (evalExpr q e)
     where match' (Right True) = True
           match' _            = False
 
-evalExpr :: Execution m -> QExpr a -> Either EvalError a
+evalExpr :: Execution m -> TExpr a -> Either EvalError a
 evalExpr _ (N x)              = Right x
 evalExpr _ (B x)              = Right x
 evalExpr _ (S x)              = Right x
@@ -57,28 +56,28 @@ coerceNumberParam :: Text -> Param -> Either EvalError (Rational)
 coerceNumberParam name (Just (NumberParam r)) = Right r
 coerceNumberParam name _ = Left (EvalError $ "could not coerce "++ T.unpack name ++" to number")
 
-showExpr :: QExpr a -> String
-showExpr (N x) = show x
-showExpr (B x) = show x
-showExpr (S x) = show x
-showExpr (L x) = show x
-showExpr (T x) = show x
-showExpr (Not x)  = "! " ++ "(" ++ showExpr x ++ ")"
-showExpr (And e1 e2)        = "(" ++ showExpr e1 ++ " && " ++ showExpr e2 ++ ")"
-showExpr (Or e1 e2)         = "(" ++ showExpr e1 ++ " || " ++ showExpr e2 ++ ")"
-showExpr (Contains e1 e2)   = "(" ++ showExpr e1 ++ " in " ++ showExpr e2 ++ ")"
-showExpr (Gt e1 e2)         = "(" ++ showExpr e1 ++ " >= " ++ showExpr e2 ++ ")"
-showExpr (Eq e1 e2)         = "(" ++ showExpr e1 ++ " == " ++ showExpr e2 ++ ")"
-showExpr (Plus e1 e2)       = "(" ++ showExpr e1 ++ " + " ++ showExpr e2 ++ ")"
-showExpr (Times e1 e2)      = "(" ++ showExpr e1 ++ " * " ++ showExpr e2 ++ ")"
-showExpr ScName          = "@sc.name"
-showExpr ScStatus        = "@sc.status"
-showExpr (ScParam key)   = "@sc.param:" ++ show key
-showExpr (SCoerce x) = showExpr x
-showExpr (NCoerce x) = showExpr x
+showTExpr :: TExpr a -> String
+showTExpr (N x) = show x
+showTExpr (B x) = show x
+showTExpr (S x) = show x
+showTExpr (L x) = show x
+showTExpr (T x) = show x
+showTExpr (Not x)  = "! " ++ "(" ++ showTExpr x ++ ")"
+showTExpr (And e1 e2)        = "(" ++ showTExpr e1 ++ " && " ++ showTExpr e2 ++ ")"
+showTExpr (Or e1 e2)         = "(" ++ showTExpr e1 ++ " || " ++ showTExpr e2 ++ ")"
+showTExpr (Contains e1 e2)   = "(" ++ showTExpr e1 ++ " in " ++ showTExpr e2 ++ ")"
+showTExpr (Gt e1 e2)         = "(" ++ showTExpr e1 ++ " >= " ++ showTExpr e2 ++ ")"
+showTExpr (Eq e1 e2)         = "(" ++ showTExpr e1 ++ " == " ++ showTExpr e2 ++ ")"
+showTExpr (Plus e1 e2)       = "(" ++ showTExpr e1 ++ " + " ++ showTExpr e2 ++ ")"
+showTExpr (Times e1 e2)      = "(" ++ showTExpr e1 ++ " * " ++ showTExpr e2 ++ ")"
+showTExpr ScName          = "@sc.name"
+showTExpr ScStatus        = "@sc.status"
+showTExpr (ScParam key)   = "@sc.param:" ++ show key
+showTExpr (SCoerce x) = showTExpr x
+showTExpr (NCoerce x) = showTExpr x
 
-instance (Show (QExpr a)) where
-    show = showExpr
+instance (Show (TExpr a)) where
+    show = showTExpr
 
 showUExpr :: UExpr -> String
 showUExpr (UN x) = show x

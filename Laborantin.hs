@@ -44,7 +44,7 @@ executeMissing b sc = do
     mapM_ f $ S.toList (exhaustive `S.difference` existing)
     where f = execute b sc
 
-load :: (MonadIO m) => Backend m -> [ScenarioDescription m] -> QExpr Bool -> m [Execution m]
+load :: (MonadIO m) => Backend m -> [ScenarioDescription m] -> TExpr Bool -> m [Execution m]
 load = bLoad
 
 remove :: (MonadIO m) => Backend m -> Execution m -> m ()

@@ -99,7 +99,7 @@ instance RecordCommand Labor where
 data DescriptionQuery = ScenarioName [Text]
     deriving (Show)
 
-parseParamQuery :: Text -> Maybe (QExpr Bool)
+parseParamQuery :: Text -> Maybe (TExpr Bool)
 parseParamQuery str = let vals = T.splitOn ":" str in
     case vals of
     [k,"ratio",v]    -> Just (Eq (NCoerce (ScParam k)) (N $ unsafeReadText v))
@@ -111,25 +111,25 @@ parseParamQuery str = let vals = T.splitOn ":" str in
     where   unsafeReadText :: (Read a) => Text -> a 
             unsafeReadText = read . T.unpack
 
-paramsToQuery :: [Text] -> QExpr Bool
+paramsToQuery :: [Text] -> TExpr Bool
 paramsToQuery xs = let atoms = catMaybes (map parseParamQuery xs) in
   conjunctionQueries atoms
 
 -- if no scenario: True, otherwise any of the scenarios
-scenarsToQuery :: [Text] -> QExpr Bool
+scenarsToQuery :: [Text] -> TExpr Bool
 scenarsToQuery [] = B True
 scenarsToQuery scii = let atoms = map (\name -> (Eq ScName (S name))) scii in
     disjunctionQueries atoms
 
-statusToQuery :: Bool -> QExpr Bool
+statusToQuery :: Bool -> TExpr Bool
 statusToQuery True  =     (Eq ScStatus (S "success"))
 statusToQuery False = Not (Eq ScStatus (S "success"))
 
-conjunctionQueries :: [QExpr Bool] -> QExpr Bool
+conjunctionQueries :: [TExpr Bool] -> TExpr Bool
 conjunctionQueries []     = B True
 conjunctionQueries (q:qs) = And q (conjunctionQueries qs)
 
-disjunctionQueries :: [QExpr Bool] -> QExpr Bool
+disjunctionQueries :: [TExpr Bool] -> TExpr Bool
 disjunctionQueries []     = B False
 disjunctionQueries (q:qs) = Or q (disjunctionQueries qs)
 
@@ -148,7 +148,7 @@ runLabor xs labor =
     (Run { continue = False })      -> runSc execAll
     (Run { continue = True })       -> runSc execRemaining
     Analyze {}                      -> runSc loadAndAnalyze
-    Query {}                        -> putStrLn $ showExpr query
+    Query {}                        -> putStrLn $ showTExpr query
 
     where xs'           = filterDescriptions (ScenarioName $ map T.pack $ scenarii labor) xs
           paramsQuery   = paramsToQuery $ map T.pack $ params labor

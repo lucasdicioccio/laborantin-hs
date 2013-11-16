@@ -24,7 +24,7 @@ module Laborantin.Types (
     ,   Step
     ,   Action (..)
     ,   DynEnv (..)
-    ,   QExpr (..)
+    ,   TExpr (..)
     ,   UExpr (..)
     ,   Dependency (..)
 ) where
@@ -139,7 +139,7 @@ data Backend m = Backend {
   , bAnalyze   :: Execution m -> Step m ()
   , bRecover   :: ExecutionError -> Execution m -> Step m ()
   , bResult    :: Execution m -> FilePath -> Step m (Result m)
-  , bLoad      :: [ScenarioDescription m] -> QExpr Bool -> m [Execution m]
+  , bLoad      :: [ScenarioDescription m] -> TExpr Bool -> m [Execution m]
   , bLogger    :: Execution m -> Step m (LogHandler m)
   , bRemove    :: Execution m -> m ()
 }
@@ -153,25 +153,25 @@ data Result m = Result {
 
 newtype LogHandler m = LogHandler { lLog :: Text -> Step m () }
 
-data QExpr :: * -> * where
-    N           :: (Show n, Num n) => n -> QExpr n
-    B           :: Bool -> QExpr Bool
-    S           :: Text -> QExpr Text
-    L           :: (Show a) => [a] -> QExpr [a]
-    T           :: ClockTime -> QExpr ClockTime
-    Plus        :: (Show n, Num n) => QExpr n -> QExpr n -> QExpr n
-    Times       :: (Show n, Num n) => QExpr n -> QExpr n -> QExpr n
-    And         :: QExpr Bool -> QExpr Bool -> QExpr Bool
-    Or          :: QExpr Bool -> QExpr Bool -> QExpr Bool
-    Not         :: QExpr Bool -> QExpr Bool
-    Contains    :: (Show a, Eq a)  => QExpr a -> QExpr [a] -> QExpr Bool
-    Eq          :: (Show a, Eq a)  => QExpr a -> QExpr a -> QExpr Bool
-    Gt          :: (Show a, Ord a) => QExpr a -> QExpr a -> QExpr Bool
-    ScName      :: QExpr Text
-    ScStatus    :: QExpr Text
-    ScParam     :: Text -> QExpr (Text, Maybe ParameterValue)
-    SCoerce     :: QExpr (Text, Maybe ParameterValue) -> QExpr Text
-    NCoerce     :: QExpr (Text, Maybe ParameterValue) -> QExpr Rational
+data TExpr :: * -> * where
+    N           :: (Show n, Num n) => n -> TExpr n
+    B           :: Bool -> TExpr Bool
+    S           :: Text -> TExpr Text
+    L           :: (Show a) => [a] -> TExpr [a]
+    T           :: ClockTime -> TExpr ClockTime
+    Plus        :: (Show n, Num n) => TExpr n -> TExpr n -> TExpr n
+    Times       :: (Show n, Num n) => TExpr n -> TExpr n -> TExpr n
+    And         :: TExpr Bool -> TExpr Bool -> TExpr Bool
+    Or          :: TExpr Bool -> TExpr Bool -> TExpr Bool
+    Not         :: TExpr Bool -> TExpr Bool
+    Contains    :: (Show a, Eq a)  => TExpr a -> TExpr [a] -> TExpr Bool
+    Eq          :: (Show a, Eq a)  => TExpr a -> TExpr a -> TExpr Bool
+    Gt          :: (Show a, Ord a) => TExpr a -> TExpr a -> TExpr Bool
+    ScName      :: TExpr Text
+    ScStatus    :: TExpr Text
+    ScParam     :: Text -> TExpr (Text, Maybe ParameterValue)
+    SCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Text
+    NCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Rational
 
 data UExpr = forall n. (Num n, Show n) => UN n
     | UB Bool

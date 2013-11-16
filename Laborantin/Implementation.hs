@@ -177,14 +177,14 @@ resolveDependencies' exec attempted trying
 
 getPendingDeps exec deps = map fst . filter (not . snd). zip deps <$> mapM (flip dCheck exec) deps
 
-loadExisting :: [ScenarioDescription EnvIO] -> QExpr Bool -> EnvIO [Execution EnvIO]
+loadExisting :: [ScenarioDescription EnvIO] -> TExpr Bool -> EnvIO [Execution EnvIO]
 loadExisting scs qexpr = do
     concat <$> mapM f scs
     where f :: ScenarioDescription EnvIO -> EnvIO [Execution EnvIO]
           f sc = do
             paths <- map ((name ++ "/") ++) . filter notDot <$> liftIO (getDirectoryContents name)
             allExecs <- mapM (loadOne sc scs) paths
-            return $ filter (matchQExpr qexpr) allExecs
+            return $ filter (matchTExpr qexpr) allExecs
             where notDot dirname = take 1 dirname /= "."
                   name = T.unpack $ sName sc
 
