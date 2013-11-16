@@ -154,7 +154,7 @@ data Result m = Result {
 newtype LogHandler m = LogHandler { lLog :: Text -> Step m () }
 
 data TExpr :: * -> * where
-    N           :: (Show n, Num n) => n -> TExpr n
+    N           :: Rational -> TExpr Rational
     B           :: Bool -> TExpr Bool
     S           :: Text -> TExpr Text
     L           :: (Show a) => [a] -> TExpr [a]
@@ -173,7 +173,7 @@ data TExpr :: * -> * where
     SCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Text
     NCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Rational
 
-data UExpr = forall n. (Num n, Show n) => UN n
+data UExpr = UN Rational
     | UB Bool
     | US Text
     | UL [UExpr]
