@@ -1,3 +1,4 @@
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
@@ -24,6 +25,7 @@ module Laborantin.Types (
     ,   Action (..)
     ,   DynEnv (..)
     ,   QExpr (..)
+    ,   UExpr (..)
     ,   Dependency (..)
 ) where
 
@@ -170,3 +172,25 @@ data QExpr :: * -> * where
     ScParam     :: Text -> QExpr (Text, Maybe ParameterValue)
     SCoerce     :: QExpr (Text, Maybe ParameterValue) -> QExpr Text
     NCoerce     :: QExpr (Text, Maybe ParameterValue) -> QExpr Rational
+
+data UExpr = forall n. (Num n, Show n) => UN n
+    | UB Bool
+    | US Text
+    | UL [UExpr]
+    | UT ClockTime
+    | UPlus     UExpr UExpr
+    | UMinus    UExpr UExpr
+    | UTimes    UExpr UExpr
+    | UDiv      UExpr UExpr
+    | UAnd      UExpr UExpr
+    | UOr       UExpr UExpr
+    | UContains UExpr UExpr
+    | UEq       UExpr UExpr
+    | UGt       UExpr UExpr
+    | UGte      UExpr UExpr
+    | ULte      UExpr UExpr
+    | ULt       UExpr UExpr
+    | UNot UExpr
+    | UScName
+    | UScStatus
+    | UScParam     Text
