@@ -157,10 +157,10 @@ data TExpr :: * -> * where
     N           :: Rational -> TExpr Rational
     B           :: Bool -> TExpr Bool
     S           :: Text -> TExpr Text
-    L           :: (Show a) => [a] -> TExpr [a]
+    L           :: [TExpr a] -> TExpr [a]
     T           :: ClockTime -> TExpr ClockTime
-    Plus        :: (Show n, Num n) => TExpr n -> TExpr n -> TExpr n
-    Times       :: (Show n, Num n) => TExpr n -> TExpr n -> TExpr n
+    Plus        :: TExpr Rational -> TExpr Rational -> TExpr Rational
+    Times       :: TExpr Rational -> TExpr Rational -> TExpr Rational
     And         :: TExpr Bool -> TExpr Bool -> TExpr Bool
     Or          :: TExpr Bool -> TExpr Bool -> TExpr Bool
     Not         :: TExpr Bool -> TExpr Bool
@@ -172,6 +172,8 @@ data TExpr :: * -> * where
     ScParam     :: Text -> TExpr (Text, Maybe ParameterValue)
     SCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Text
     NCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Rational
+    SilentSCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Text
+    SilentNCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Rational
 
 data UExpr = UN Rational
     | UB Bool

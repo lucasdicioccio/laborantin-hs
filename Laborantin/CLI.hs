@@ -11,12 +11,15 @@ import Laborantin
 import Laborantin.Types
 import Laborantin.Implementation
 import Laborantin.Query
+import Laborantin.Query.Parse
+import Laborantin.Query.Interpret
 import System.Environment
 import System.Console.CmdLib hiding (run)
 import qualified Data.Map as M
 import Data.List (intercalate)
 import Data.Aeson (encode)
 import Data.Maybe (catMaybes)
+import Data.Either (rights)
 import qualified Data.ByteString.Lazy.Char8 as C
 import Data.List.Split (splitOn)
 import Data.Text (Text)
@@ -59,12 +62,12 @@ describeExecution e = T.pack $ intercalate " " [ ePath e
                                       ]
 
 
-data Labor = Run        { scenarii   :: [String] , params :: [String] , continue :: Bool} 
+data Labor = Run        { scenarii   :: [String] , params :: [String] , continue :: Bool , matcher :: [String]} 
            | Describe   { scenarii   :: [String] } 
-           | Find       { scenarii   :: [String] , params :: [String] , successful :: Bool} 
-           | Analyze    { scenarii   :: [String] , params :: [String] , successful :: Bool} 
-           | Rm         { scenarii   :: [String] , params :: [String] , successful :: Bool} 
-           | Query      { scenarii   :: [String] , params :: [String] , successful :: Bool} 
+           | Find       { scenarii   :: [String] , params :: [String] , successful :: Bool, matcher :: [String]} 
+           | Analyze    { scenarii   :: [String] , params :: [String] , successful :: Bool , matcher :: [String]} 
+           | Rm         { scenarii   :: [String] , params :: [String] , successful :: Bool , matcher :: [String]} 
+           | Query      { scenarii   :: [String] , params :: [String] , successful :: Bool , matcher :: [String]} 
     deriving (Typeable, Data, Show, Eq)
 
 instance Attributes Labor where
@@ -90,17 +93,22 @@ instance Attributes Labor where
                                     , Invertible True
                                     , Default True
                                     ]
+                    ,   matcher  %> [ Short "m"
+                                    , Long ["matcher"]
+                                    , Help "Restrict to a matching expression"
+                                    , ArgHelp "MATCHER EXPRESSION"
+                                    ]
                     ]
 
 instance RecordCommand Labor where
     mode_summary _ = "Laborantin command-line interface"
     run' = error "should not arrive here"
 
-data DescriptionQuery = ScenarioName [Text]
+data DescriptionTExpr = ScenarioName [Text]
     deriving (Show)
 
-parseParamQuery :: Text -> Maybe (TExpr Bool)
-parseParamQuery str = let vals = T.splitOn ":" str in
+parseParamTExpr :: Text -> Maybe (TExpr Bool)
+parseParamTExpr str = let vals = T.splitOn ":" str in
     case vals of
     [k,"ratio",v]    -> Just (Eq (NCoerce (ScParam k)) (N $ unsafeReadText v))
     [k,"int",v]      -> Just (Eq (NCoerce (ScParam k)) (N . toRational $ unsafeReadText v))
@@ -111,19 +119,19 @@ parseParamQuery str = let vals = T.splitOn ":" str in
     where   unsafeReadText :: (Read a) => Text -> a 
             unsafeReadText = read . T.unpack
 
-paramsToQuery :: [Text] -> TExpr Bool
-paramsToQuery xs = let atoms = catMaybes (map parseParamQuery xs) in
+paramsToTExpr :: [Text] -> TExpr Bool
+paramsToTExpr xs = let atoms = catMaybes (map parseParamTExpr xs) in
   conjunctionQueries atoms
 
 -- if no scenario: True, otherwise any of the scenarios
-scenarsToQuery :: [Text] -> TExpr Bool
-scenarsToQuery [] = B True
-scenarsToQuery scii = let atoms = map (\name -> (Eq ScName (S name))) scii in
+scenarsToTExpr :: [Text] -> TExpr Bool
+scenarsToTExpr [] = B True
+scenarsToTExpr scii = let atoms = map (\name -> (Eq ScName (S name))) scii in
     disjunctionQueries atoms
 
-statusToQuery :: Bool -> TExpr Bool
-statusToQuery True  =     (Eq ScStatus (S "success"))
-statusToQuery False = Not (Eq ScStatus (S "success"))
+statusToTExpr :: Bool -> TExpr Bool
+statusToTExpr True  =     (Eq ScStatus (S "success"))
+statusToTExpr False = Not (Eq ScStatus (S "success"))
 
 conjunctionQueries :: [TExpr Bool] -> TExpr Bool
 conjunctionQueries []     = B True
@@ -133,7 +141,7 @@ disjunctionQueries :: [TExpr Bool] -> TExpr Bool
 disjunctionQueries []     = B False
 disjunctionQueries (q:qs) = Or q (disjunctionQueries qs)
 
-filterDescriptions :: DescriptionQuery -> [ScenarioDescription m] -> [ScenarioDescription m]
+filterDescriptions :: DescriptionTExpr -> [ScenarioDescription m] -> [ScenarioDescription m]
 filterDescriptions (ScenarioName []) xs = xs
 filterDescriptions (ScenarioName ns) xs = filter ((flip elem ns) . sName) xs
 
@@ -151,10 +159,12 @@ runLabor xs labor =
     Query {}                        -> putStrLn $ showTExpr query
 
     where xs'           = filterDescriptions (ScenarioName $ map T.pack $ scenarii labor) xs
-          paramsQuery   = paramsToQuery $ map T.pack $ params labor
-          scenarioQuery = scenarsToQuery $ map T.pack $ scenarii labor
-          statusQuery   = statusToQuery $ successful labor
-          !query        = conjunctionQueries [paramsQuery, scenarioQuery, statusQuery]
+          matcherUExprs = rights $ map parseUExpr (matcher labor)
+          matcherTExprs = map (toTExpr (B True)) matcherUExprs
+          paramsTExpr   = paramsToTExpr $ map T.pack $ params labor
+          scenarioTExpr = scenarsToTExpr $ map T.pack $ scenarii labor
+          statusTExpr   = statusToTExpr $ successful labor
+          !query        = conjunctionQueries (paramsTExpr:scenarioTExpr:statusTExpr:matcherTExprs)
           runSc         = void . runEnvIO
           loadMatching  = load defaultBackend xs' query
           loadAndRemove = loadMatching >>= mapM (remove defaultBackend)

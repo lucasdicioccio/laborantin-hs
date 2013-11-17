@@ -23,7 +23,7 @@ evalExpr :: Execution m -> TExpr a -> Either EvalError a
 evalExpr _ (N x)              = Right x
 evalExpr _ (B x)              = Right x
 evalExpr _ (S x)              = Right x
-evalExpr _ (L x)              = Right x
+evalExpr exec (L xs)          = mapM (evalExpr exec) xs >>= Right
 evalExpr _ (T x)              = Right x
 evalExpr exec ScName          = Right $ sName $ eScenario exec
 evalExpr exec ScStatus | eStatus exec == Success = Right "success"
@@ -31,7 +31,6 @@ evalExpr exec ScStatus | eStatus exec == Success = Right "success"
                        | eStatus exec == Running = Right "running"
 evalExpr exec (ScParam key)   = Right $ (key, M.lookup key (eParamSet exec))
 evalExpr x (Not e)            = not <$> evalExpr x e
-evalExpr x (Contains e1 e2)   = elem <$> evalExpr x e1 <*> evalExpr x e2
 evalExpr x (Gt e1 e2)         = (>=) <$> evalExpr x e1 <*> evalExpr x e2
 evalExpr x (Eq e1 e2)         = (==) <$> evalExpr x e1 <*> evalExpr x e2
 evalExpr x (Plus e1 e2)       = (+) <$> evalExpr x e1 <*> evalExpr x e2
@@ -40,9 +39,21 @@ evalExpr x (And e1 e2)        = (&&) <$> evalExpr x e1 <*> evalExpr x e2
 evalExpr x (Or e1 e2)         = (||) <$> evalExpr x e1 <*> evalExpr x e2
 evalExpr x (SCoerce e1)       = evalExpr x e1 >>= uncurry coerceStringParam
 evalExpr x (NCoerce e1)       = evalExpr x e1 >>= uncurry coerceNumberParam
+evalExpr x (Contains (SilentSCoerce e1) e2)   = do
+    paramVal <- (evalExpr x e1)
+    case paramVal of
+        (_, (Just (StringParam str)))   -> elem str <$> evalExpr x e2
+        _                               -> return False
+evalExpr x (Contains (SilentNCoerce e1) e2)   = do
+    paramVal <- (evalExpr x e1)
+    case paramVal of
+        (_, (Just (NumberParam str)))   -> elem str <$> evalExpr x e2
+        _                               -> return False
+evalExpr x (Contains e1 e2)   = elem <$> evalExpr x e1 <*> evalExpr x e2
+
 
 coerceStringParam :: Text -> Param -> Either EvalError (Text)
-coerceStringParam name (Just (StringParam str)) = Right str
+coerceStringParam _ (Just (StringParam str)) = Right str
 coerceStringParam name _ = Left (EvalError $    "could not coerce "
                                              ++ T.unpack name
                                              ++ " to String")
@@ -52,24 +63,26 @@ coerceNumberParam name (Just (NumberParam r)) = Right r
 coerceNumberParam name _ = Left (EvalError $ "could not coerce "++ T.unpack name ++" to number")
 
 showTExpr :: TExpr a -> String
-showTExpr (N x) = show x
-showTExpr (B x) = show x
-showTExpr (S x) = show x
-showTExpr (L x) = show x
-showTExpr (T x) = show x
-showTExpr (Not x)  = "! " ++ "(" ++ showTExpr x ++ ")"
-showTExpr (And e1 e2)        = "(" ++ showTExpr e1 ++ " && " ++ showTExpr e2 ++ ")"
-showTExpr (Or e1 e2)         = "(" ++ showTExpr e1 ++ " || " ++ showTExpr e2 ++ ")"
-showTExpr (Contains e1 e2)   = "(" ++ showTExpr e1 ++ " in " ++ showTExpr e2 ++ ")"
-showTExpr (Gt e1 e2)         = "(" ++ showTExpr e1 ++ " >= " ++ showTExpr e2 ++ ")"
-showTExpr (Eq e1 e2)         = "(" ++ showTExpr e1 ++ " == " ++ showTExpr e2 ++ ")"
-showTExpr (Plus e1 e2)       = "(" ++ showTExpr e1 ++ " + " ++ showTExpr e2 ++ ")"
-showTExpr (Times e1 e2)      = "(" ++ showTExpr e1 ++ " * " ++ showTExpr e2 ++ ")"
-showTExpr ScName          = "@sc.name"
-showTExpr ScStatus        = "@sc.status"
-showTExpr (ScParam key)   = "@sc.param:" ++ show key
-showTExpr (SCoerce x) = showTExpr x
-showTExpr (NCoerce x) = showTExpr x
+showTExpr (N x)             = show x
+showTExpr (B x)             = show x
+showTExpr (S x)             = show x
+showTExpr (L x)             = show x
+showTExpr (T x)             = show x
+showTExpr (Not x)           = "! " ++ "(" ++ showTExpr x ++ ")"
+showTExpr (And e1 e2)       = "(" ++ showTExpr e1 ++ " && " ++ showTExpr e2 ++ ")"
+showTExpr (Or e1 e2)        = "(" ++ showTExpr e1 ++ " || " ++ showTExpr e2 ++ ")"
+showTExpr (Contains e1 e2)  = "(" ++ showTExpr e1 ++ " in " ++ showTExpr e2 ++ ")"
+showTExpr (Gt e1 e2)        = "(" ++ showTExpr e1 ++ " >= " ++ showTExpr e2 ++ ")"
+showTExpr (Eq e1 e2)        = "(" ++ showTExpr e1 ++ " == " ++ showTExpr e2 ++ ")"
+showTExpr (Plus e1 e2)      = "(" ++ showTExpr e1 ++ " + " ++ showTExpr e2 ++ ")"
+showTExpr (Times e1 e2)     = "(" ++ showTExpr e1 ++ " * " ++ showTExpr e2 ++ ")"
+showTExpr ScName            = "@sc.name"
+showTExpr ScStatus          = "@sc.status"
+showTExpr (ScParam key)     = "@sc.param:" ++ show key
+showTExpr (SCoerce x)       = showTExpr x
+showTExpr (NCoerce x)       = showTExpr x
+showTExpr (SilentSCoerce x) = showTExpr x
+showTExpr (SilentNCoerce x) = showTExpr x
 
 instance (Show (TExpr a)) where
     show = showTExpr

@@ -114,9 +114,10 @@ open-source: use it, fork it, or clone it.
 
 For version 1.
 
-* QExpr parser
-* Expand QExpr to parameter space (for run command)
-* Selector to load prior results based on a QExpr
+* Parse clocktime
+* Debug errors in
+* Function to expand TExpr to parameter space (for run command)
+* Selector to load prior results based on a TExpr
   - "require" helper that sets a dep + selection
 * exports to propose exported files using "show-exports" command
 
