@@ -8,6 +8,7 @@ import Control.Applicative ((<$>),(<*>))
 import Laborantin.Query
 import Data.Text (Text)
 import Data.Maybe (fromMaybe)
+import System.Time (ClockTime)
 
 type Param = Maybe ParameterValue
 
@@ -16,6 +17,7 @@ data TTyp a where
     TTNum       :: TTyp Rational
     TTString    :: TTyp Text
     TTParam     :: TTyp (Text,Param)
+    TTClock     :: TTyp ClockTime
 
 data IError = IError
     deriving (Show)
@@ -40,17 +42,38 @@ interpret UScName       = Right (ScName ::: TTString)
 interpret UScStatus     = Right (ScStatus ::: TTString)
 interpret (UScParam a)  = Right (ScParam a ::: TTParam)
 interpret (UB a)        = Right (B a ::: TTBool)
+interpret (UT a)        = Right (T a ::: TTClock)
 interpret (UN a)        = Right (N a ::: TTNum)
 interpret (US a)        = Right (S a ::: TTString)
+interpret (UAnd a b)   = do
+    vals <- ((,) <$> interpret a <*> interpret b)
+    case vals of
+        (x ::: TTBool, y ::: TTBool) -> Right (And x y ::: TTBool)
+        _   -> error "typing"
+interpret (UOr a b)   = do
+    vals <- ((,) <$> interpret a <*> interpret b)
+    case vals of
+        (x ::: TTBool, y ::: TTBool) -> Right (Or x y ::: TTBool)
+        _   -> error "typing"
 interpret (UPlus a b)   = do
     vals <- ((,) <$> interpret a <*> interpret b)
     case vals of
         (x ::: TTNum, y ::: TTNum) -> Right (Plus x y ::: TTNum)
         _   -> error "typing"
+interpret (UMinus a b) = do
+    vals <- ((,) <$> interpret a <*> interpret b)
+    case vals of
+        (x ::: TTNum, y ::: TTNum) -> Right (Times x (TBind "0 - x" (\n -> N (0 - n)) y) ::: TTNum)
+        _   -> error "typing"
 interpret (UTimes a b) = do
     vals <- ((,) <$> interpret a <*> interpret b)
     case vals of
         (x ::: TTNum, y ::: TTNum) -> Right (Times x y ::: TTNum)
+        _   -> error "typing"
+interpret (UDiv a b) = do
+    vals <- ((,) <$> interpret a <*> interpret b)
+    case vals of
+        (x ::: TTNum, y ::: TTNum) -> Right (Times x (TBind "1/x" (\n -> N (1/n)) y) ::: TTNum)
         _   -> error "typing"
 interpret (UEq a b) = do
     vals <- ((,) <$> interpret a <*> interpret b)
@@ -72,6 +95,9 @@ interpret (UGt a b) = do
         (x ::: TTNum, y ::: TTParam)     -> Right (Gt x (NCoerce y) ::: TTBool)
         (x ::: TTParam, y ::: TTParam)   -> Right (Gt (NCoerce x) (NCoerce y) ::: TTBool)
         _   -> error "typing error"
+interpret (UGte a b) = interpret (UOr (UGt a b) (UEq a b))
+interpret (ULt a b)  = interpret (UNot (UGte a b))
+interpret (ULte a b) = interpret (UNot (UGt a b))
 interpret (UContains a b) = do
     val <- interpret a
     case val of
@@ -84,6 +110,11 @@ interpret (UContains a b) = do
 interpret (UL as) = do
     -- TODO evaluate non-heterogeneous lists
     error "cannot safely evaluate list which may be heterogeneous"
+interpret (UNot x) = do
+    val <- interpret x
+    case val of
+        (x ::: TTBool) -> Right (Not x ::: TTBool)
+        _   -> error "typing error"
 
 ttnums :: UExpr -> [TExpr Rational]
 ttnums (UL xs) = map (\(UN x) -> N x) (filter match xs)

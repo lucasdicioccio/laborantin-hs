@@ -20,6 +20,7 @@ matchTExpr e q = match' (evalExpr q e)
           match' _            = False
 
 evalExpr :: Execution m -> TExpr a -> Either EvalError a
+evalExpr exec (TBind _ f expr)    = evalExpr exec expr >>= evalExpr exec . f
 evalExpr _ (N x)              = Right x
 evalExpr _ (B x)              = Right x
 evalExpr _ (S x)              = Right x
@@ -72,7 +73,7 @@ showTExpr (Not x)           = "! " ++ "(" ++ showTExpr x ++ ")"
 showTExpr (And e1 e2)       = "(" ++ showTExpr e1 ++ " && " ++ showTExpr e2 ++ ")"
 showTExpr (Or e1 e2)        = "(" ++ showTExpr e1 ++ " || " ++ showTExpr e2 ++ ")"
 showTExpr (Contains e1 e2)  = "(" ++ showTExpr e1 ++ " in " ++ showTExpr e2 ++ ")"
-showTExpr (Gt e1 e2)        = "(" ++ showTExpr e1 ++ " >= " ++ showTExpr e2 ++ ")"
+showTExpr (Gt e1 e2)        = "(" ++ showTExpr e1 ++ " >  " ++ showTExpr e2 ++ ")"
 showTExpr (Eq e1 e2)        = "(" ++ showTExpr e1 ++ " == " ++ showTExpr e2 ++ ")"
 showTExpr (Plus e1 e2)      = "(" ++ showTExpr e1 ++ " + " ++ showTExpr e2 ++ ")"
 showTExpr (Times e1 e2)     = "(" ++ showTExpr e1 ++ " * " ++ showTExpr e2 ++ ")"
@@ -83,6 +84,7 @@ showTExpr (SCoerce x)       = showTExpr x
 showTExpr (NCoerce x)       = showTExpr x
 showTExpr (SilentSCoerce x) = showTExpr x
 showTExpr (SilentNCoerce x) = showTExpr x
+showTExpr (TBind  str f x)  = "(" ++ str ++ " -> (" ++ showTExpr x ++ "))"
 
 instance (Show (TExpr a)) where
     show = showTExpr

@@ -174,6 +174,7 @@ data TExpr :: * -> * where
     NCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Rational
     SilentSCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Text
     SilentNCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Rational
+    TBind      :: String -> (a -> TExpr b) -> TExpr a -> TExpr b
 
 data UExpr = UN Rational
     | UB Bool
