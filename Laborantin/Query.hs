@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Laborantin.Query (matchTExpr, showTExpr) where
+module Laborantin.Query (matchTExpr, simplifyOneBoolLevel, showTExpr) where
 
 import Laborantin.Types
 import qualified Data.Map as M
@@ -13,6 +13,15 @@ type Param = Maybe ParameterValue
 
 data EvalError = EvalError String
     deriving (Show)
+
+simplifyOneBoolLevel :: TExpr Bool -> TExpr Bool
+simplifyOneBoolLevel (And (B True) e)  = simplifyOneBoolLevel e
+simplifyOneBoolLevel (And e (B True))  = simplifyOneBoolLevel e
+simplifyOneBoolLevel (And a b)         = (And (simplifyOneBoolLevel a) (simplifyOneBoolLevel b))
+simplifyOneBoolLevel (Or (B False) e)  = simplifyOneBoolLevel e
+simplifyOneBoolLevel (Or e (B False))  = simplifyOneBoolLevel e
+simplifyOneBoolLevel (Or a b)          = (Or (simplifyOneBoolLevel a) (simplifyOneBoolLevel b))
+simplifyOneBoolLevel e                 = e
 
 matchTExpr :: TExpr Bool -> Execution m -> Bool
 matchTExpr e q = match' (evalExpr q e)

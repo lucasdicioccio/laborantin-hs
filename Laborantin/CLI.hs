@@ -156,7 +156,7 @@ runLabor xs labor =
     (Run { continue = False })      -> runSc execAll
     (Run { continue = True })       -> runSc execRemaining
     Analyze {}                      -> runSc loadAndAnalyze
-    Query {}                        -> putStrLn $ showTExpr query
+    Query {}                        -> putStrLn $ showTExpr $ simplifyOneBoolLevel query
 
     where xs'           = filterDescriptions (ScenarioName $ map T.pack $ scenarii labor) xs
           matcherUExprs = rights $ map parseUExpr (matcher labor)
