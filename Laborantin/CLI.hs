@@ -153,8 +153,9 @@ runLabor xs labor =
     Find {}                         -> do (execs,_) <- runEnvIO loadMatching
                                           mapM_ (T.putStrLn . describeExecution) execs
     (Rm {})                         -> runSc loadAndRemove
-    (Run { continue = False })      -> runSc execAll
-    (Run { continue = True })       -> runSc execRemaining
+    (Run { continue = False })      -> mapM_ runSc allExecs
+    (Run { continue = True })       -> do (execs,_) <- runEnvIO loadMatching
+                                          mapM_ runSc (remainingExecs execs)
     Analyze {}                      -> runSc loadAndAnalyze
     Query {}                        -> putStrLn $ showTExpr $ simplifyOneBoolLevel query
 
@@ -169,5 +170,5 @@ runLabor xs labor =
           loadMatching  = load defaultBackend xs' query
           loadAndRemove = loadMatching >>= mapM (remove defaultBackend)
           loadAndAnalyze= loadMatching >>= mapM (executeAnalysis defaultBackend)
-          execAll       = forM_ xs' $ executeExhaustive defaultBackend
-          execRemaining = forM_ xs' $ executeMissing defaultBackend
+          allExecs      = concatMap (executeExhaustive defaultBackend) xs'
+          remainingExecs execs = concatMap (\sc -> executeMissing defaultBackend sc execs) xs'

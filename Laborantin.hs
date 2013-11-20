@@ -31,18 +31,16 @@ executeAnalysis b exec = do
           rebrandError (ExecutionError str) = Left $ AnalysisError str
 
 
-executeExhaustive :: (MonadIO m) => Backend m -> ScenarioDescription m -> m ()
-executeExhaustive b sc = mapM_ f $ paramSets $ sParams sc
+executeExhaustive :: (MonadIO m) => Backend m -> ScenarioDescription m -> [m ()]
+executeExhaustive b sc = map f $ paramSets $ sParams sc
     where f = execute b sc 
 
-executeMissing :: (MonadIO m) => Backend m -> ScenarioDescription m -> m ()
-executeMissing b sc = do
-    execs <- load b [sc] (B True)
-    let successful = filter ((== Success) . eStatus) execs
-    let exhaustive = S.fromList $ paramSets (sParams sc)
-    let existing = S.fromList $ map eParamSet successful
-    mapM_ f $ S.toList (exhaustive `S.difference` existing)
-    where f = execute b sc
+executeMissing :: (MonadIO m) => Backend m -> ScenarioDescription m -> [Execution m] -> [m ()]
+executeMissing b sc execs = map f $ S.toList (exhaustive `S.difference` existing)
+    where successful = filter ((== Success) . eStatus) execs
+          exhaustive = S.fromList $ paramSets (sParams sc)
+          existing = S.fromList $ map eParamSet successful
+          f = execute b sc
 
 load :: (MonadIO m) => Backend m -> [ScenarioDescription m] -> TExpr Bool -> m [Execution m]
 load = bLoad

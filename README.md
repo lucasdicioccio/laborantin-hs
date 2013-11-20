@@ -122,5 +122,5 @@ For version 1.
 * exports to propose exported files using "show-exports" command
 
 # Annoyances/Bugs
-* DynEnv shared for the whole runEnvIO, need to have one DynEnv per-execution
+* the "continue" mode doesn't do what it should anymore, don't use it for now
 
