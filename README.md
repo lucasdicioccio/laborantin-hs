@@ -112,15 +112,16 @@ open-source: use it, fork it, or clone it.
 
 # Roadmap
 
-For version 1.
+For version 1.2
 
-* Parse clocktime
-* Debug errors in
-* Function to expand TExpr to parameter space (for run command)
-* Selector to load prior results based on a TExpr
+* Syntax to parse clocktime and with --date=today/this-week etc. types of flags
+* Print better debug errors on parsing messages
+* Function to expand an UExpr (or a TExpr ([(ParameterName,ParameterValue)]))into a ParameterSpace
+  - then need a function to extend a ParameterSpace with default values
+	ScenarioDescription -> ParameterSpace -> ParameterSpace
+* Add a scSelector :: TExpr Bool field to a scenario to load ancestors at prepare-time
   - "require" helper that sets a dep + selection
 * exports to propose exported files using "show-exports" command
 
 # Annoyances/Bugs
 * the "continue" mode doesn't do what it should anymore, don't use it for now
-
