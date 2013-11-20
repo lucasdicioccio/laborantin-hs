@@ -4,7 +4,32 @@
 name:                laborantin-hs
 version:             0.1.1.3
 synopsis:            an experiment management framework
--- description:         
+description:         Laborantin is a framework and DSL to run and manage results from
+                     scientific experiments.
+
+                     Writing experiments with Laborantin has the at least two advantages
+                     over rolling your own scripts:
+                     - standardizes the workflow, to describe what a project
+                       can do, what experiments where already run, how to
+                       delete files corresponding to a specific experiment etc.
+                     - builds on years of experience running experiments,
+                       alleviates pain points such as querying for experiments,
+                       managing dependencies between results
+
+                     Good targets for Laborantin are experiments that you can
+                     run "offline" such as benchmark and batch analytics.
+
+                     Laborantin's DSL lets you express experiment parameters,
+                     setup, teardown, and recovery hooks in a systematic way.
+                     In addition, this DSL let you express dependencies on your
+                     experiments so that you can run prior experiments or data analyses.
+
+                     Laborantin comes with a default backend that stores
+                     experiment results in a filesystem-hierarchy. Laborantin
+                     also comes with a default command-line that let you
+                     specify which experiments to run, analyze, or delete.
+
+
 homepage:            https://github.com/lucasdicioccio/laborantin-hs
 license:             Apache-2.0
 license-file:        LICENSE
