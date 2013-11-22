@@ -1,6 +1,11 @@
 Changelog
 =========
 
+# 0.1.2.0 (2013-11-22)
+* change timestamp format (data-incompatible) from custom to UTCTime
+* add TExpr and UExpr module
+    - add possibility to filter results using a query
+
 # 0.1.1.0 (2013-10-20)
 * add mini-command line in defaultMain with support for:
     - help: print basic help
