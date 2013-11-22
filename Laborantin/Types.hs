@@ -30,7 +30,7 @@ module Laborantin.Types (
 ) where
 
 import qualified Data.Map as M
-import System.Time (ClockTime)
+import Data.Time (UTCTime)
 import Control.Monad.Reader
 import Control.Monad.Error
 import Data.Dynamic
@@ -91,7 +91,7 @@ data Execution m = Exec {
   , ePath     :: FilePath
   , eStatus   :: ExecutionStatus
   , eAncestors   :: [Execution m] 
-  , eTimeStamps :: (ClockTime,ClockTime)
+  , eTimeStamps :: (UTCTime,UTCTime)
 } deriving (Show)
 
 data StoredExecution = Stored {
@@ -99,7 +99,7 @@ data StoredExecution = Stored {
   , sePath     :: FilePath
   , seStatus   :: ExecutionStatus
   , seAncestors :: [(FilePath,Text)]
-  , seTimeStamps :: (ClockTime,ClockTime)
+  , seTimeStamps :: (UTCTime,UTCTime)
 } deriving (Show)
 
 data Dependency m = Dep {
@@ -158,7 +158,7 @@ data TExpr :: * -> * where
     B           :: Bool -> TExpr Bool
     S           :: Text -> TExpr Text
     L           :: [TExpr a] -> TExpr [a]
-    T           :: ClockTime -> TExpr ClockTime
+    T           :: UTCTime -> TExpr UTCTime
     Plus        :: TExpr Rational -> TExpr Rational -> TExpr Rational
     Times       :: TExpr Rational -> TExpr Rational -> TExpr Rational
     And         :: TExpr Bool -> TExpr Bool -> TExpr Bool
@@ -180,7 +180,7 @@ data UExpr = UN Rational
     | UB Bool
     | US Text
     | UL [UExpr]
-    | UT ClockTime
+    | UT UTCTime
     | UPlus     UExpr UExpr
     | UMinus    UExpr UExpr
     | UTimes    UExpr UExpr

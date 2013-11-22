@@ -30,7 +30,7 @@ import System.Log.Logger
 import System.Log.Handler (close)
 import System.Log.Handler.Simple
 import System.Log.Handler.Log4jXML
-import System.Time (ClockTime(TOD),getClockTime)
+import Data.Time (UTCTime, getCurrentTime)
 
 -- | Default monad for 'defaultBackend'.
 --   EnvIO carries a 'DynEnv' in a state and allows you to perform IO actions.
@@ -48,12 +48,6 @@ instance ToJSON ParameterValue where
 
 instance ToJSON ExecutionStatus where
     toJSON = toJSON . show
-
-instance ToJSON ClockTime where
-    toJSON (TOD secs ps) = object [ "sec" .= secs
-                                  , "ps" .= ps
-                                  , "zero" .= ("epoch" :: String)
-                                  ]
 
 instance ToJSON (Execution a) where
     toJSON (Exec sc params path status es tsts) = object [ "scenario-name" .= sName sc
@@ -78,10 +72,6 @@ instance FromJSON ParameterValue where
 
 instance FromJSON ExecutionStatus where
     parseJSON (A.String txt) = return $ read $ T.unpack txt
-    parseJSON _ = mzero
-
-instance FromJSON ClockTime where
-    parseJSON (A.Object v) = TOD <$> v .: "sec" <*> v .: "ps"
     parseJSON _ = mzero
 
 instance FromJSON StoredExecution where
@@ -111,7 +101,7 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
         prepare = prepareNewScenario
         finalize  exec finalizer = do
                             finalizer exec
-                            now <- liftIO $ getClockTime
+                            now <- liftIO $ getCurrentTime
                             let exec' = updateCompletionTime exec now
                             liftIO . putStrLn $ "execution finished\n"
                             liftIO $ BSL.writeFile (rundir ++ "/execution.json") (encode exec')
@@ -130,7 +120,7 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
 
         load               = loadExisting
 
-updateCompletionTime :: Execution m -> ClockTime -> Execution m
+updateCompletionTime :: Execution m -> UTCTime -> Execution m
 updateCompletionTime exec t1 = exec {eTimeStamps = (t0,t1)}  
     where t0 = fst $ eTimeStamps exec
 
@@ -143,7 +133,7 @@ advertise exec = T.pack $ unlines [ "scenario: " ++ (show . sName . eScenario) e
 prepareNewScenario :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
 prepareNewScenario  sc params = do
     (now,uuid) <- liftIO $ do
-                now <- getClockTime
+                now <- getCurrentTime
                 id <- randomIO :: IO UUID
                 return (now,id)
     let rundir = intercalate "/" [T.unpack (sName sc), show uuid]

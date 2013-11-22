@@ -8,7 +8,7 @@ import Control.Applicative ((<$>),(<*>))
 import Laborantin.Query
 import Data.Text (Text)
 import Data.Maybe (fromMaybe)
-import System.Time (ClockTime)
+import Data.Time (UTCTime)
 
 type Param = Maybe ParameterValue
 
@@ -17,7 +17,7 @@ data TTyp a where
     TTNum       :: TTyp Rational
     TTString    :: TTyp Text
     TTParam     :: TTyp (Text,Param)
-    TTClock     :: TTyp ClockTime
+    TTUTCTime   :: TTyp UTCTime
 
 data IError = IError
     deriving (Show)
@@ -42,7 +42,7 @@ interpret UScName       = Right (ScName ::: TTString)
 interpret UScStatus     = Right (ScStatus ::: TTString)
 interpret (UScParam a)  = Right (ScParam a ::: TTParam)
 interpret (UB a)        = Right (B a ::: TTBool)
-interpret (UT a)        = Right (T a ::: TTClock)
+interpret (UT a)        = Right (T a ::: TTUTCTime)
 interpret (UN a)        = Right (N a ::: TTNum)
 interpret (US a)        = Right (S a ::: TTString)
 interpret (UAnd a b)   = do
