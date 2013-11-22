@@ -170,6 +170,7 @@ data TExpr :: * -> * where
     ScName      :: TExpr Text
     ScStatus    :: TExpr Text
     ScParam     :: Text -> TExpr (Text, Maybe ParameterValue)
+    ScTimestamp :: TExpr UTCTime
     SCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Text
     NCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Rational
     SilentSCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Text

@@ -36,6 +36,7 @@ evalExpr _ (S x)              = Right x
 evalExpr exec (L xs)          = mapM (evalExpr exec) xs >>= Right
 evalExpr _ (T x)              = Right x
 evalExpr exec ScName          = Right $ sName $ eScenario exec
+evalExpr exec ScTimestamp     = Right $ fst $ eTimeStamps exec
 evalExpr exec ScStatus | eStatus exec == Success = Right "success"
                        | eStatus exec == Failure = Right "failure"
                        | eStatus exec == Running = Right "running"
@@ -88,6 +89,7 @@ showTExpr (Plus e1 e2)      = "(" ++ showTExpr e1 ++ " + " ++ showTExpr e2 ++ ")
 showTExpr (Times e1 e2)     = "(" ++ showTExpr e1 ++ " * " ++ showTExpr e2 ++ ")"
 showTExpr ScName            = "@sc.name"
 showTExpr ScStatus          = "@sc.status"
+showTExpr ScTimestamp       = "@sc.timestamp"
 showTExpr (ScParam key)     = "@sc.param:" ++ show key
 showTExpr (SCoerce x)       = showTExpr x
 showTExpr (NCoerce x)       = showTExpr x

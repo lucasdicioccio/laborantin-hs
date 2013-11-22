@@ -25,6 +25,7 @@ import Data.List.Split (splitOn)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import Data.Time (UTCTime(..), getCurrentTime)
 
 defaultMain xs = getArgs >>= dispatchR [] >>= runLabor xs
 
@@ -64,10 +65,10 @@ describeExecution e = T.pack $ intercalate " " [ ePath e
 
 data Labor = Run        { scenarii   :: [String] , params :: [String] , continue :: Bool , matcher :: [String]} 
            | Describe   { scenarii   :: [String] } 
-           | Find       { scenarii   :: [String] , params :: [String] , successful :: Bool, matcher :: [String]} 
-           | Analyze    { scenarii   :: [String] , params :: [String] , successful :: Bool , matcher :: [String]} 
-           | Rm         { scenarii   :: [String] , params :: [String] , successful :: Bool , matcher :: [String]} 
-           | Query      { scenarii   :: [String] , params :: [String] , successful :: Bool , matcher :: [String]} 
+           | Find       { scenarii   :: [String] , params :: [String] , successful :: Bool, today :: Bool, matcher :: [String]} 
+           | Analyze    { scenarii   :: [String] , params :: [String] , successful :: Bool , today :: Bool, matcher :: [String]} 
+           | Rm         { scenarii   :: [String] , params :: [String] , successful :: Bool , today :: Bool, matcher :: [String]} 
+           | Query      { scenarii   :: [String] , params :: [String] , successful :: Bool , today :: Bool, matcher :: [String]} 
     deriving (Typeable, Data, Show, Eq)
 
 instance Attributes Labor where
@@ -92,6 +93,11 @@ instance Attributes Labor where
                                     , Help "Successful only"
                                     , Invertible True
                                     , Default True
+                                    ]
+                    ,   today %> [ Long ["today"]
+                                    , Help "Today only (currently uses UTC day!)"
+                                    , Invertible True
+                                    , Default False
                                     ]
                     ,   matcher  %> [ Short "m"
                                     , Long ["matcher"]
@@ -133,12 +139,18 @@ statusToTExpr :: Bool -> TExpr Bool
 statusToTExpr True  =     (Eq ScStatus (S "success"))
 statusToTExpr False = Not (Eq ScStatus (S "success"))
 
+todayToTExpr :: Bool -> UTCTime -> TExpr Bool
+todayToTExpr True today  = (Or (Eq ScTimestamp (T today)) (Gt ScTimestamp (T today)))
+todayToTExpr False _     = B True
+
 conjunctionQueries :: [TExpr Bool] -> TExpr Bool
 conjunctionQueries []     = B True
+conjunctionQueries [q]    = q
 conjunctionQueries (q:qs) = And q (conjunctionQueries qs)
 
 disjunctionQueries :: [TExpr Bool] -> TExpr Bool
 disjunctionQueries []     = B False
+disjunctionQueries [q]    = q
 disjunctionQueries (q:qs) = Or q (disjunctionQueries qs)
 
 filterDescriptions :: DescriptionTExpr -> [ScenarioDescription m] -> [ScenarioDescription m]
@@ -147,28 +159,32 @@ filterDescriptions (ScenarioName ns) xs = filter ((flip elem ns) . sName) xs
 
 
 runLabor :: [ScenarioDescription EnvIO] -> Labor -> IO ()
-runLabor xs labor =
+runLabor xs labor = do
+    now <- getCurrentTime
     case labor of
-    (Describe scii)                 -> forM_ xs' (T.putStrLn . describeScenario)
-    Find {}                         -> do (execs,_) <- runEnvIO loadMatching
-                                          mapM_ (T.putStrLn . describeExecution) execs
-    (Rm {})                         -> runSc loadAndRemove
-    (Run { continue = False })      -> mapM_ runSc allExecs
-    (Run { continue = True })       -> do (execs,_) <- runEnvIO loadMatching
-                                          mapM_ runSc (remainingExecs execs)
-    Analyze {}                      -> runSc loadAndAnalyze
-    Query {}                        -> putStrLn $ showTExpr $ simplifyOneBoolLevel query
+        (Describe scii)                 -> forM_ xs' (T.putStrLn . describeScenario)
+        Find {}                         -> do (execs,_) <- runEnvIO (loadMatching now)
+                                              mapM_ (T.putStrLn . describeExecution) execs
+        (Rm {})                         -> runSc (loadAndRemove now)
+        (Run { continue = False })      -> mapM_ runSc allExecs
+        (Run { continue = True })       -> do (execs,_) <- runEnvIO (loadMatching now)
+                                              mapM_ runSc (remainingExecs execs)
+        Analyze {}                      -> runSc (loadAndAnalyze now)
+        Query {}                        -> do let expr = simplifyOneBoolLevel $ query now
+                                              putStrLn $ showTExpr expr
 
-    where xs'           = filterDescriptions (ScenarioName $ map T.pack $ scenarii labor) xs
-          matcherUExprs = rights $ map parseUExpr (matcher labor)
-          matcherTExprs = map (toTExpr (B True)) matcherUExprs
-          paramsTExpr   = paramsToTExpr $ map T.pack $ params labor
-          scenarioTExpr = scenarsToTExpr $ map T.pack $ scenarii labor
-          statusTExpr   = statusToTExpr $ successful labor
-          !query        = conjunctionQueries (paramsTExpr:scenarioTExpr:statusTExpr:matcherTExprs)
-          runSc         = void . runEnvIO
-          loadMatching  = load defaultBackend xs' query
-          loadAndRemove = loadMatching >>= mapM (remove defaultBackend)
-          loadAndAnalyze= loadMatching >>= mapM (executeAnalysis defaultBackend)
-          allExecs      = concatMap (executeExhaustive defaultBackend) xs'
-          remainingExecs execs = concatMap (\sc -> executeMissing defaultBackend sc execs) xs'
+        where xs'           = filterDescriptions (ScenarioName $ map T.pack $ scenarii labor) xs
+              matcherUExprs = rights $ map parseUExpr (matcher labor)
+              matcherTExprs = map (toTExpr (B True)) matcherUExprs
+              paramsTExpr   = paramsToTExpr $ map T.pack $ params labor
+              scenarioTExpr = scenarsToTExpr $ map T.pack $ scenarii labor
+              statusTExpr   = statusToTExpr $ successful labor
+              dateTExpr tst = todayToTExpr (today labor) (tst {utctDayTime = 0})
+              query tst     = conjunctionQueries (paramsTExpr:scenarioTExpr:statusTExpr:dateTExpr':matcherTExprs)
+                              where dateTExpr' = dateTExpr tst
+              runSc         = void . runEnvIO
+              loadMatching  tst = load defaultBackend xs' (query tst)
+              loadAndRemove  tst = loadMatching tst >>= mapM (remove defaultBackend)
+              loadAndAnalyze tst = loadMatching tst >>= mapM (executeAnalysis defaultBackend)
+              allExecs      = concatMap (executeExhaustive defaultBackend) xs'
+              remainingExecs execs = concatMap (\sc -> executeMissing defaultBackend sc execs) xs'
