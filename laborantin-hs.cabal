@@ -10,7 +10,7 @@ description:
     run /offline/ such as benchmark and batch analytics.
     .
     Writing experiments with Laborantin has at least two advantages over
-    rolling your own scripts.  First, Laborantain standardizes the workflow of your
+    rolling your own scripts.  First, Laborantin standardizes the workflow of your
     experimentations.  There is one-way to describe what a project can do, what
     experiments where already run, how to delete files corresponding to a specific
     experiment etc.  Second, Laborantin builds on years of experience running
