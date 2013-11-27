@@ -40,6 +40,7 @@ toTExpr' u = case interpret u of
 interpret :: UExpr -> Either IError ATExpr
 interpret UScName       = Right (ScName ::: TTString)
 interpret UScStatus     = Right (ScStatus ::: TTString)
+interpret UScTimestamp  = Right (ScTimestamp ::: TTUTCTime)
 interpret (UScParam a)  = Right (ScParam a ::: TTParam)
 interpret (UB a)        = Right (B a ::: TTBool)
 interpret (UT a)        = Right (T a ::: TTUTCTime)
@@ -78,22 +79,24 @@ interpret (UDiv a b) = do
 interpret (UEq a b) = do
     vals <- ((,) <$> interpret a <*> interpret b)
     case vals of
-        (x ::: TTNum, y ::: TTNum)       -> Right (Eq x y ::: TTBool)
-        (x ::: TTString, y ::: TTString) -> Right (Eq x y ::: TTBool)
-        (x ::: TTBool, y ::: TTBool)     -> Right (Eq x y ::: TTBool)
-        (x ::: TTParam, y ::: TTString)  -> Right (Eq (SCoerce x) y ::: TTBool)
-        (x ::: TTString, y ::: TTParam)  -> Right (Eq x (SCoerce y) ::: TTBool)
-        (x ::: TTParam, y ::: TTNum)     -> Right (Eq (NCoerce x) y ::: TTBool)
-        (x ::: TTNum, y ::: TTParam)     -> Right (Eq x (NCoerce y) ::: TTBool)
-        (x ::: TTParam, y ::: TTParam)   -> Right (Eq x y ::: TTBool)
+        (x ::: TTNum, y ::: TTNum)          -> Right (Eq x y ::: TTBool)
+        (x ::: TTString, y ::: TTString)    -> Right (Eq x y ::: TTBool)
+        (x ::: TTBool, y ::: TTBool)        -> Right (Eq x y ::: TTBool)
+        (x ::: TTUTCTime, y ::: TTUTCTime)  -> Right (Eq x y ::: TTBool)
+        (x ::: TTParam, y ::: TTString)     -> Right (Eq (SCoerce x) y ::: TTBool)
+        (x ::: TTString, y ::: TTParam)     -> Right (Eq x (SCoerce y) ::: TTBool)
+        (x ::: TTParam, y ::: TTNum)        -> Right (Eq (NCoerce x) y ::: TTBool)
+        (x ::: TTNum, y ::: TTParam)        -> Right (Eq x (NCoerce y) ::: TTBool)
+        (x ::: TTParam, y ::: TTParam)      -> Right (Eq x y ::: TTBool)
         _   -> error "typing"
 interpret (UGt a b) = do
     vals <- ((,) <$> interpret a <*> interpret b)
     case vals of
-        (x ::: TTNum, y ::: TTNum)       -> Right (Gt x y ::: TTBool)
-        (x ::: TTParam, y ::: TTNum)     -> Right (Gt (NCoerce x) y ::: TTBool)
-        (x ::: TTNum, y ::: TTParam)     -> Right (Gt x (NCoerce y) ::: TTBool)
-        (x ::: TTParam, y ::: TTParam)   -> Right (Gt (NCoerce x) (NCoerce y) ::: TTBool)
+        (x ::: TTNum, y ::: TTNum)          -> Right (Gt x y ::: TTBool)
+        (x ::: TTUTCTime, y ::: TTUTCTime)  -> Right (Gt x y ::: TTBool)
+        (x ::: TTParam, y ::: TTNum)        -> Right (Gt (NCoerce x) y ::: TTBool)
+        (x ::: TTNum, y ::: TTParam)        -> Right (Gt x (NCoerce y) ::: TTBool)
+        (x ::: TTParam, y ::: TTParam)      -> Right (Gt (NCoerce x) (NCoerce y) ::: TTBool)
         _   -> error "typing error"
 interpret (UGte a b) = interpret (UOr (UGt a b) (UEq a b))
 interpret (ULt a b)  = interpret (UNot (UGte a b))
@@ -102,6 +105,7 @@ interpret (UContains a b) = do
     val <- interpret a
     case val of
         (x ::: TTNum)       -> Right (Contains x (L $ ttnums b) ::: TTBool)
+        (x ::: TTUTCTime)   -> Right (Contains x (L $ ttutcs b) ::: TTBool)
         (x ::: TTString)    -> Right (Contains x (L $ ttstrs b) ::: TTBool)
         (x ::: TTParam)     -> Right ((Or (Contains (SilentSCoerce x) (L $ ttstrs b))
                                           (Contains (SilentNCoerce x) (L $ ttnums b)))
@@ -127,3 +131,9 @@ ttstrs (UL xs) = map (\(US x) -> S x) (filter match xs)
     where match (US _) = True
           match _      = False
 ttstrs _ = []
+
+ttutcs :: UExpr -> [TExpr UTCTime]
+ttutcs (UL xs) = map (\(UT x) -> T x) (filter match xs)
+    where match (UT _) = True
+          match _      = False
+ttutcs _ = []
