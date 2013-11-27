@@ -3,12 +3,16 @@
 module Laborantin.Query.Parse (expr, parseUExpr) where
 
 import Laborantin.Types (UExpr (..))
+import Laborantin.Query
 import Control.Applicative ((<$>),(<*>),(*>),(<*))
 import qualified Data.Text as T
 import Text.Parsec
 import Text.Parsec.Char
 import Text.Parsec.Combinator
-import Data.Maybe (fromJust)
+import Data.Maybe
+import System.Locale
+import Data.Time
+import Data.Time.Format
 
 parseUExpr :: String -> Either ParseError UExpr
 parseUExpr = parse expr ""
@@ -20,7 +24,6 @@ expr = foldl chainl1 term [try inclOp, try mulOp, try addOp, try compOp, try boo
 
 negated :: Parsec String u UExpr
 negated = UNot <$> (spaces *> char '!' *> spaces *> expr)
-
 
 ary :: Parsec String u UExpr
 ary = UL <$> (char '[' *> (expr `sepBy` (spaces >> char ',' >> spaces)) <* char ']')
@@ -38,17 +41,31 @@ compOp = binOp [(">=",UGte),(">",UGt),("==",UEq),("<=",ULte),("<",ULt)]
 inclOp = binOp [("in",UContains), ("~>",UContains)]
 
 literal :: Parsec String u UExpr
-literal = bool <|> (UN <$> number) <|> (US . T.pack <$> quotedString)
+literal = try bool <|> date <|> (UN <$> number) <|> (US . T.pack <$> quotedString)
+
+date :: Parsec String u UExpr
+date = do
+    string "t:"
+    str <- quotedString
+    let parsed = parseTimeFormats' defaultTimeLocale fmts str
+    case parsed of
+        [x] -> return $ UT x
+        _   -> fail "invalid time format"
+    where fmts = [ (iso8601DateFormat Nothing) ]
+
+parseTimeFormats' locale fmts str = take 1 . catMaybes $ parseResults
+    where parseResults = map (\fmt -> parseTime locale fmt str) fmts
 
 special :: Parsec String u UExpr
-special = try scname <|> try scstatus <|> scparam
+special = try scname <|> try scstatus <|> try sctimestamp <|> scparam
 
-scname,scstatus,scparam :: Parsec String u UExpr
+scname,scstatus,scparam,sctimestamp :: Parsec String u UExpr
 scname = string "@sc.name" *> return UScName
 scstatus = string "@sc.status" *> return UScStatus
 scparam = UScParam . T.pack <$> (syntax1 <|> syntax2)
     where syntax1 = string "@sc.param" *> spaces *> quotedString
           syntax2 = char ':' *> plainString
+sctimestamp = string "@sc.timestamp" *> return UScTimestamp
 
 quotedString :: Parsec String u String
 quotedString = char '"' *> many (noneOf "\"") <* char '"'
