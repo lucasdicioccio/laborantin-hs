@@ -114,13 +114,13 @@ open-source: use it, fork it, or clone it.
 
 For version 1.2
 
-* Syntax to parse clocktime and with --date=today/this-week etc. types of flags
 * Print better debug errors on parsing messages
-* Function to expand an UExpr (or a TExpr ([(ParameterName,ParameterValue)]))into a ParameterSpace
+* Use system locale rather than default locale for time parsing
+* Function to expand an UExpr (or a TExpr ([(ParameterName,ParameterValue)])) into a ParameterSpace
   - then need a function to extend a ParameterSpace with default values
 	ScenarioDescription -> ParameterSpace -> ParameterSpace
 * Add a scSelector :: TExpr Bool field to a scenario to load ancestors at prepare-time
-  - "require" helper that sets a dep + selection
+  - add handy "require" helper that sets a dep + scSelector at the same time
 * exports to propose exported files using "show-exports" command
 
 # Annoyances/Bugs
