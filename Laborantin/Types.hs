@@ -197,4 +197,5 @@ data UExpr = UN Rational
     | UNot UExpr
     | UScName
     | UScStatus
+    | UScTimestamp
     | UScParam     Text
