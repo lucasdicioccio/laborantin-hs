@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Laborantin.Query (matchTExpr, simplifyOneBoolLevel, showTExpr) where
+module Laborantin.Query (matchTExpr, simplifyOneBoolLevel, showTExpr, showUExpr) where
 
 import Laborantin.Types
 import qualified Data.Map as M
@@ -78,7 +78,7 @@ showTExpr (N x)             = show x
 showTExpr (B x)             = show x
 showTExpr (S x)             = show x
 showTExpr (L x)             = show x
-showTExpr (T x)             = show x
+showTExpr (T x)             = "t:" ++ show x
 showTExpr (Not x)           = "! " ++ "(" ++ showTExpr x ++ ")"
 showTExpr (And e1 e2)       = "(" ++ showTExpr e1 ++ " && " ++ showTExpr e2 ++ ")"
 showTExpr (Or e1 e2)        = "(" ++ showTExpr e1 ++ " || " ++ showTExpr e2 ++ ")"
@@ -105,7 +105,7 @@ showUExpr (UN x) = show x
 showUExpr (UB x) = show x
 showUExpr (US x) = show x
 showUExpr (UL x) = show x
-showUExpr (UT x) = show x
+showUExpr (UT x)              = "t:" ++ show x
 showUExpr (UNot x)            = "! " ++ "(" ++ showUExpr x ++ ")"
 showUExpr (UAnd e1 e2)        = "(" ++ showUExpr e1 ++ " and " ++ showUExpr e2 ++ ")"
 showUExpr (UOr e1 e2)         = "(" ++ showUExpr e1 ++ " or " ++ showUExpr e2 ++ ")"
@@ -121,6 +121,7 @@ showUExpr (UTimes e1 e2)      = "(" ++ showUExpr e1 ++ " * " ++ showUExpr e2 ++ 
 showUExpr (UDiv  e1 e2)       = "(" ++ showUExpr e1 ++ " / " ++ showUExpr e2 ++ ")"
 showUExpr UScName          = "@sc.name"
 showUExpr UScStatus        = "@sc.status"
+showUExpr UScTimestamp     = "@sc.timestamp"
 showUExpr (UScParam key)   = "@sc.param:" ++ show key
 
 instance (Show UExpr) where
