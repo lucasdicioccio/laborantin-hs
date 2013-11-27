@@ -51,7 +51,10 @@ date = do
     case parsed of
         [x] -> return $ UT x
         _   -> fail "invalid time format"
-    where fmts = [ (iso8601DateFormat Nothing) ]
+    where fmts =    [ iso8601DateFormat Nothing
+                    , rfc822DateFormat
+                    , iso8601DateFormat (Just "%T")
+                    ]
 
 parseTimeFormats' locale fmts str = take 1 . catMaybes $ parseResults
     where parseResults = map (\fmt -> parseTime locale fmt str) fmts
