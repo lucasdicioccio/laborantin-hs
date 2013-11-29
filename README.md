@@ -114,7 +114,6 @@ open-source: use it, fork it, or clone it.
 
 For version 1.2
 
-* Print better debug errors on parsing messages
 * Use system locale rather than default locale for time parsing
 * Function to expand an UExpr (or a TExpr ([(ParameterName,ParameterValue)])) into a ParameterSpace
   - then need a function to extend a ParameterSpace with default values
