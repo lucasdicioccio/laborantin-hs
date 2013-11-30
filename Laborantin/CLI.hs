@@ -63,13 +63,42 @@ describeExecution e = T.pack $ intercalate " " [ ePath e
                                       ]
 
 
-data Labor = Run        { scenarii   :: [String] , params :: [String] , continue :: Bool , matcher :: [String]} 
-           | Describe   { scenarii   :: [String] } 
-           | Find       { scenarii   :: [String] , params :: [String] , successful :: Bool, today :: Bool, matcher :: [String]} 
-           | Analyze    { scenarii   :: [String] , params :: [String] , successful :: Bool , today :: Bool, matcher :: [String]} 
-           | Rm         { scenarii   :: [String] , params :: [String] , successful :: Bool , today :: Bool, matcher :: [String]} 
-           | Query      { scenarii   :: [String] , params :: [String] , successful :: Bool , today :: Bool, matcher :: [String]} 
-           | Params     { scenarii   :: [String] , params :: [String] , matcher :: [String]} 
+data Labor = Run        { scenarii   :: [String]
+                        , params :: [String]
+                        , matcher :: [String]
+                        }
+           | Continue   { scenarii   :: [String]
+                        , params :: [String]
+                        , matcher :: [String]
+                        , successful :: Bool
+                        , today :: Bool, matcher :: [String]
+                        }
+           | Describe   { scenarii   :: [String]
+                        }
+           | Find       { scenarii   :: [String]
+                        , params :: [String]
+                        , successful :: Bool
+                        , today :: Bool, matcher :: [String]
+                        }
+           | Analyze    { scenarii   :: [String]
+                        , params :: [String]
+                        , successful :: Bool
+                        , today :: Bool, matcher :: [String]
+                        }
+           | Rm         { scenarii   :: [String]
+                        , params :: [String]
+                        , successful :: Bool
+                        , today :: Bool, matcher :: [String]
+                        }
+           | Query      { scenarii   :: [String]
+                        , params :: [String]
+                        , successful :: Bool
+                        , today :: Bool, matcher :: [String]
+                        }
+           | Params     { scenarii   :: [String]
+                        , params :: [String]
+                        , matcher :: [String]
+                        }
     deriving (Typeable, Data, Show, Eq)
 
 instance Attributes Labor where
@@ -83,12 +112,6 @@ instance Attributes Labor where
                                     , Long ["param"]
                                     , Help "Restrict a parameter, format name=type:val."
                                     , ArgHelp "PARAMS"
-                                    ]
-                    ,   continue %> [ Short "c"
-                                    , Long ["continue"]
-                                    , Default False
-                                    , Invertible True
-                                    , Help "Continue execution (skip known)"
                                     ]
                     ,   successful %> [ Long ["successful"]
                                     , Help "Successful only"
@@ -166,10 +189,10 @@ runLabor xs labor = do
         (Describe scii)                 -> forM_ xs' (T.putStrLn . describeScenario)
         Find {}                         -> do (execs,_) <- runEnvIO (loadMatching now)
                                               mapM_ (T.putStrLn . describeExecution) execs
-        (Rm {})                         -> runSc (loadAndRemove now)
-        (Run { continue = False })      -> mapM_ runSc allExecs
-        (Run { continue = True })       -> do (execs,_) <- runEnvIO (loadMatching now)
-                                              mapM_ runSc (remainingExecs execs)
+        Rm {}                           -> runSc (loadAndRemove now)
+        Run {}                          -> mapM_ runSc (targetExecs [])
+        Continue {}                     -> do (execs,_) <- runEnvIO (loadMatching now)
+                                              mapM_ runSc (targetExecs execs)
         Analyze {}                      -> runSc (loadAndAnalyze now)
         Query {}                        -> do let expr = simplifyOneBoolLevel $ query now
                                               putStrLn $ showTExpr expr
@@ -189,6 +212,5 @@ runLabor xs labor = do
               runSc         = void . runEnvIO
               loadMatching  tst = load defaultBackend xs' (query tst)
               loadAndRemove  tst = loadMatching tst >>= mapM (remove defaultBackend)
-              loadAndAnalyze tst = loadMatching tst >>= mapM (executeAnalysis defaultBackend)
-              allExecs      = concatMap (executeParamsetMatching defaultBackend expander) xs'
-              remainingExecs execs = concatMap (\sc -> executeMissing defaultBackend sc execs) xs'
+              loadAndAnalyze tst = loadMatching tst >>= mapM (analyze defaultBackend)
+              targetExecs existing = concatMap (prepare defaultBackend expander existing) xs'

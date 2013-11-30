@@ -5,8 +5,10 @@ module Laborantin.Implementation (
     , defaultBackend
     , defaultResult
     , defaultLog
+    , liftIO
 ) where
 
+import Control.Monad.IO.Class (liftIO)
 import qualified Data.Map as M
 import Data.Text (Text)
 import qualified Data.Text as T

@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Laborantin.Query (matchTExpr, simplifyOneBoolLevel, showTExpr, showUExpr, expandParamSpace) where
+module Laborantin.Query (matchTExpr, matchTExpr', simplifyOneBoolLevel, showTExpr, showUExpr, expandParamSpace) where
 
 import Laborantin.Types
 import qualified Data.Map as M
@@ -23,6 +23,10 @@ simplifyOneBoolLevel (Or (B False) e)  = simplifyOneBoolLevel e
 simplifyOneBoolLevel (Or e (B False))  = simplifyOneBoolLevel e
 simplifyOneBoolLevel (Or a b)          = (Or (simplifyOneBoolLevel a) (simplifyOneBoolLevel b))
 simplifyOneBoolLevel e                 = e
+
+matchTExpr' :: TExpr Bool -> ScenarioDescription m -> ParameterSet -> Bool
+matchTExpr' expr sc params = matchTExpr expr (Exec sc params "" Success [] (epoch, epoch)) 
+    where epoch = error "should not evaluated time"
 
 matchTExpr :: TExpr Bool -> Execution m -> Bool
 matchTExpr e q = match' (evalExpr q e)

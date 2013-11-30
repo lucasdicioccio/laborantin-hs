@@ -3,13 +3,10 @@
 
 module Main where
  
-import Laborantin
-import Laborantin.Types
 import Laborantin.DSL
+import Laborantin.Types
 import Laborantin.Implementation
 import Laborantin.CLI
-import Laborantin.Query
-import Control.Monad.IO.Class
 import qualified Data.Text as T
 
 {- 
