@@ -11,6 +11,7 @@ module Laborantin.Types (
     ,   ParameterSpace
     ,   ParameterSet
     ,   paramSets
+    ,   mergeParamSpaces
     ,   expandValue
     ,   Result (..)
     ,   Backend (..)
@@ -36,6 +37,7 @@ import Control.Monad.Error
 import Data.Dynamic
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.List (nub)
 
 type DynEnv = M.Map Text Dynamic
 type ParameterSpace = M.Map Text ParameterDescription
@@ -128,6 +130,11 @@ paramSets ps = map M.fromList $ sequence possibleValues
     where possibleValues = map f $ M.toList ps
           f (k,desc) = concatMap (map (pName desc,) . expandValue) $ pValues desc
 type Finalizer m = Execution m -> m ()
+
+mergeParamSpaces :: ParameterSpace -> ParameterSpace -> ParameterSpace
+mergeParamSpaces ps1 ps2 = M.mergeWithKey f id id ps1 ps2
+    where f k v1 v2 = Just (v1 { pValues = values })
+                        where values = nub $ (pValues v1) ++ (pValues v2)
 
 data Backend m = Backend {
     bName      :: Text

@@ -69,6 +69,7 @@ data Labor = Run        { scenarii   :: [String] , params :: [String] , continue
            | Analyze    { scenarii   :: [String] , params :: [String] , successful :: Bool , today :: Bool, matcher :: [String]} 
            | Rm         { scenarii   :: [String] , params :: [String] , successful :: Bool , today :: Bool, matcher :: [String]} 
            | Query      { scenarii   :: [String] , params :: [String] , successful :: Bool , today :: Bool, matcher :: [String]} 
+           | Params     { scenarii   :: [String] , params :: [String] , matcher :: [String]} 
     deriving (Typeable, Data, Show, Eq)
 
 instance Attributes Labor where
@@ -172,6 +173,8 @@ runLabor xs labor = do
         Analyze {}                      -> runSc (loadAndAnalyze now)
         Query {}                        -> do let expr = simplifyOneBoolLevel $ query now
                                               putStrLn $ showTExpr expr
+        Params {}                       -> do let expr = simplifyOneBoolLevel expander 
+                                              putStrLn $ showTExpr expr
 
         where xs'           = filterDescriptions (ScenarioName $ map T.pack $ scenarii labor) xs
               matcherUExprs = rights $ map parseUExpr (matcher labor)
@@ -182,9 +185,10 @@ runLabor xs labor = do
               dateTExpr tst = todayToTExpr (today labor) (tst {utctDayTime = 0})
               query tst     = conjunctionQueries (paramsTExpr:scenarioTExpr:statusTExpr:dateTExpr':matcherTExprs)
                               where dateTExpr' = dateTExpr tst
+              expander      = conjunctionQueries (paramsTExpr:scenarioTExpr:matcherTExprs)
               runSc         = void . runEnvIO
               loadMatching  tst = load defaultBackend xs' (query tst)
               loadAndRemove  tst = loadMatching tst >>= mapM (remove defaultBackend)
               loadAndAnalyze tst = loadMatching tst >>= mapM (executeAnalysis defaultBackend)
-              allExecs      = concatMap (executeExhaustive defaultBackend) xs'
+              allExecs      = concatMap (executeParamsetMatching defaultBackend expander) xs'
               remainingExecs execs = concatMap (\sc -> executeMissing defaultBackend sc execs) xs'

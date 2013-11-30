@@ -2,6 +2,7 @@
 module Laborantin where
 
 import Laborantin.Types
+import Laborantin.Query
 import Laborantin.DSL
 import Laborantin.Implementation
 import Control.Monad.IO.Class
@@ -30,6 +31,10 @@ executeAnalysis b exec = do
     where go exec = bAnalyze b exec
           rebrandError (ExecutionError str) = Left $ AnalysisError str
 
+
+executeParamsetMatching :: (MonadIO m) => Backend m -> TExpr Bool -> ScenarioDescription m -> [m ()]
+executeParamsetMatching b expr sc = map f $ paramSets $ expandParamSpace (sParams sc) expr
+    where f = execute b sc
 
 executeExhaustive :: (MonadIO m) => Backend m -> ScenarioDescription m -> [m ()]
 executeExhaustive b sc = map f $ paramSets $ sParams sc

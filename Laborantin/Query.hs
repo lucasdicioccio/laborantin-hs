@@ -1,12 +1,13 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Laborantin.Query (matchTExpr, simplifyOneBoolLevel, showTExpr, showUExpr) where
+module Laborantin.Query (matchTExpr, simplifyOneBoolLevel, showTExpr, showUExpr, expandParamSpace) where
 
 import Laborantin.Types
 import qualified Data.Map as M
 import Control.Applicative ((<$>),(<*>))
 import Data.Text (Text)
+import qualified Data.Map as M
 import qualified Data.Text as T
 
 type Param = Maybe ParameterValue
@@ -73,6 +74,37 @@ coerceNumberParam :: Text -> Param -> Either EvalError (Rational)
 coerceNumberParam name (Just (NumberParam r)) = Right r
 coerceNumberParam name _ = Left (EvalError $ "could not coerce "++ T.unpack name ++" to number")
 
+expandParamSpace :: ParameterSpace -> TExpr Bool -> ParameterSpace
+expandParamSpace params (Eq (ScParam key) expr)        =
+    overWriteParamSpace params key (toParamValues expr)
+expandParamSpace params (Or expr1 expr2)               =
+    mergeParamSpaces ps1 ps2
+    where ps1 = expandParamSpace params expr1
+          ps2 = expandParamSpace params expr2 
+expandParamSpace params (And expr1 expr2)              =
+    mergeParamSpaces ps1 ps2
+    where ps1 = expandParamSpace params expr1
+          ps2 = expandParamSpace params expr2 
+expandParamSpace params (Contains (SCoerce (ScParam key)) expr)  =
+    overWriteParamSpace params key (toParamValues expr)
+expandParamSpace params (Contains (NCoerce (ScParam key)) expr)  =
+    overWriteParamSpace params key (toParamValues expr)
+expandParamSpace params (Contains (SilentSCoerce (ScParam key)) expr)  =
+    overWriteParamSpace params key (toParamValues expr)
+expandParamSpace params (Contains (SilentNCoerce (ScParam key)) expr)  =
+    overWriteParamSpace params key (toParamValues expr)
+expandParamSpace params _                              = params
+
+overWriteParamSpace :: ParameterSpace -> Text -> [ParameterValue] -> ParameterSpace
+overWriteParamSpace ps key values = M.updateWithKey f key ps
+    where f k param = Just (param {pValues = values})
+
+toParamValues :: TExpr a -> [ParameterValue]
+toParamValues (N x) = [NumberParam x]
+toParamValues (S x) = [StringParam x]
+toParamValues (L x) = concatMap toParamValues x
+toParamValues _     = []
+
 showTExpr :: TExpr a -> String
 showTExpr (N x)             = show x
 showTExpr (B x)             = show x
@@ -91,10 +123,10 @@ showTExpr ScName            = "@sc.name"
 showTExpr ScStatus          = "@sc.status"
 showTExpr ScTimestamp       = "@sc.timestamp"
 showTExpr (ScParam key)     = "@sc.param:" ++ show key
-showTExpr (SCoerce x)       = showTExpr x
-showTExpr (NCoerce x)       = showTExpr x
-showTExpr (SilentSCoerce x) = showTExpr x
-showTExpr (SilentNCoerce x) = showTExpr x
+showTExpr (SCoerce x)       = "str!{"++(showTExpr x)++"}"
+showTExpr (NCoerce x)       = "num!{"++(showTExpr )x++"}"
+showTExpr (SilentSCoerce x) = "str{"++(showTExpr x)++"}"
+showTExpr (SilentNCoerce x) = "num{"++(showTExpr x)++"}"
 showTExpr (TBind  str f x)  = "(" ++ str ++ " -> (" ++ showTExpr x ++ "))"
 
 instance (Show (TExpr a)) where
