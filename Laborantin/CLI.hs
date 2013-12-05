@@ -187,11 +187,11 @@ runLabor xs labor = do
     now <- getCurrentTime
     case labor of
         (Describe scii)                 -> forM_ xs' (T.putStrLn . describeScenario)
-        Find {}                         -> do (execs,_) <- runEnvIO (loadMatching now)
+        Find {}                         -> do execs <- runEnvIO (loadMatching now)
                                               mapM_ (T.putStrLn . describeExecution) execs
         Rm {}                           -> runSc (loadAndRemove now)
         Run {}                          -> mapM_ runSc (targetExecs [])
-        Continue {}                     -> do (execs,_) <- runEnvIO (loadMatching now)
+        Continue {}                     -> do execs <- runEnvIO (loadMatching now)
                                               mapM_ runSc (targetExecs execs)
         Analyze {}                      -> runSc (loadAndAnalyze now)
         Query {}                        -> do let expr = simplifyOneBoolLevel $ query now

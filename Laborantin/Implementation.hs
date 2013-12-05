@@ -36,11 +36,11 @@ import Data.Time (UTCTime, getCurrentTime)
 
 -- | Default monad for 'defaultBackend'.
 --   EnvIO carries a 'DynEnv' in a state and allows you to perform IO actions.
-type EnvIO = (StateT DynEnv IO)
+type EnvIO = IO
 
 -- | Execute an EnvIO action in IO.
-runEnvIO :: EnvIO a -> IO (a,DynEnv)
-runEnvIO m = runStateT m M.empty
+runEnvIO :: IO a -> IO a
+runEnvIO = id
 
 instance ToJSON ParameterValue where
     toJSON (StringParam str) = object ["type" .= ("string"::Text), "val" .= str]

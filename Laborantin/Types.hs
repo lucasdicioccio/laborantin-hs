@@ -25,6 +25,7 @@ module Laborantin.Types (
     ,   Step
     ,   Action (..)
     ,   DynEnv (..)
+    ,   emptyEnv
     ,   TExpr (..)
     ,   UExpr (..)
     ,   Dependency (..)
@@ -33,6 +34,7 @@ module Laborantin.Types (
 import qualified Data.Map as M
 import Data.Time (UTCTime)
 import Control.Monad.Reader
+import Control.Monad.State
 import Control.Monad.Error
 import Data.Dynamic
 import Data.Text (Text)
@@ -40,6 +42,9 @@ import qualified Data.Text as T
 import Data.List (nub)
 
 type DynEnv = M.Map Text Dynamic
+emptyEnv :: DynEnv
+emptyEnv = M.empty
+
 type ParameterSpace = M.Map Text ParameterDescription
 data ExecutionError = ExecutionError String
     deriving (Show)
@@ -51,7 +56,7 @@ instance Error ExecutionError where
 instance Error AnalysisError where
   noMsg    = AnalysisError "A String Error!"
   strMsg   = AnalysisError
-type Step m a = ErrorT ExecutionError (ReaderT (Backend m,Execution m) m) a
+type Step m a = (ErrorT ExecutionError (StateT DynEnv (ReaderT (Backend m,Execution m) m)) a)
 
 newtype Action m = Action { unAction :: Step m () }
 

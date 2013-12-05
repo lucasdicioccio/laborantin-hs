@@ -5,7 +5,8 @@ import Laborantin.Types
 import Laborantin.Query
 import Laborantin.Implementation
 import Control.Monad.IO.Class
-import Control.Monad.Reader
+import Control.Monad.Reader 
+import Control.Monad.State 
 import Control.Monad.Error
 import Control.Applicative
 import qualified Data.Set as S
@@ -25,7 +26,7 @@ execute :: (MonadIO m) => Backend m -> ScenarioDescription m -> ParameterSet -> 
 execute b sc prm = execution
   where execution = do
             (exec,final) <- bPrepareExecution b sc prm 
-            status <- runReaderT (runErrorT (go exec `catchError` recover exec)) (b, exec)
+            status <- liftM fst $ runReaderT (runStateT (runErrorT (go exec `catchError` recover exec)) emptyEnv) (b, exec)
             let exec' = either (\_ -> exec {eStatus = Failure}) (\_ -> exec {eStatus = Success}) status
             bFinalizeExecution b exec' final
             where go exec = do 
@@ -46,7 +47,8 @@ remove = bRemove
 
 analyze :: (MonadIO m, Functor m) => Backend m -> Execution m -> m (Either AnalysisError ())
 analyze b exec = do
-    either rebrandError Right <$> runReaderT (runErrorT (go exec)) (b, exec)
+    let status = runReaderT (runStateT (runErrorT (go exec)) emptyEnv) (b, exec)
+    (either rebrandError Right) . fst <$> status
     where go exec = bAnalyze b exec
           rebrandError (ExecutionError str) = Left $ AnalysisError str
 
