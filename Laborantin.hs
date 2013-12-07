@@ -1,5 +1,5 @@
 
-module Laborantin (prepare, load, remove, analyze) where
+module Laborantin (prepare, load, remove, analyze, expandTExprToParamSpace) where
 
 import Laborantin.Types
 import Laborantin.Query
@@ -18,9 +18,11 @@ prepare :: (MonadIO m)    => Backend m
                           -> [m ()]
 prepare b expr execs sc = map f $ filter matching $ listDiff target existing
     where existing = map eParamSet $ filter ((== Success) . eStatus) execs
-          target = paramSets $ expandParamSpace (sParams sc) expr
+          target = expandTExprToParamSpace sc expr
           f = execute b sc
           matching = matchTExpr' expr sc
+
+expandTExprToParamSpace sc expr = paramSets $ expandParamSpace (sParams sc) expr
 
 execute :: (MonadIO m) => Backend m -> ScenarioDescription m -> ParameterSet -> m ()
 execute b sc prm = execution

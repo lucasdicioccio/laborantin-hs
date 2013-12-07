@@ -162,8 +162,8 @@ resolveDependencies' :: Execution EnvIO -> [Dependency EnvIO] -> [Dependency Env
 resolveDependencies' exec _ []   = return ()
 resolveDependencies' exec attempted trying 
   | all (\d -> elem d attempted) trying = error "cannot solve dependencies"
-  | otherwise = do
-    mapM (flip dSolve exec) trying
+  | otherwise                           = do
+    mapM (flip dSolve (exec, defaultBackend)) trying
     pending <- getPendingDeps exec trying
     resolveDependencies' exec (trying ++ attempted) pending
 

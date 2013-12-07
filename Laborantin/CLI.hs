@@ -195,9 +195,9 @@ runLabor xs labor = do
                                               mapM_ runSc (targetExecs execs)
         Analyze {}                      -> runSc (loadAndAnalyze now)
         Query {}                        -> do let expr = simplifyOneBoolLevel $ query now
-                                              putStrLn $ showTExpr expr
+                                              print expr
         Params {}                       -> do let expr = simplifyOneBoolLevel expander 
-                                              putStrLn $ showTExpr expr
+                                              print expr
 
         where xs'           = filterDescriptions (ScenarioName $ map T.pack $ scenarii labor) xs
               matcherUExprs = rights $ map parseUExpr (matcher labor)

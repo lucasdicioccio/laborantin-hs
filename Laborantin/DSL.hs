@@ -5,6 +5,7 @@ module Laborantin.DSL (
         scenario
     ,   describe
     ,   parameter
+    ,   require
     ,   dependency
     ,   check
     ,   resolve
@@ -31,12 +32,15 @@ module Laborantin.DSL (
 
 import qualified Data.Map as M
 import Laborantin.Types
+import Laborantin.Query
+import Laborantin.Query.Parse
+import Laborantin.Query.Interpret
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Error
 import Control.Applicative
 import Data.Dynamic
-import Data.Text (Text, unpack)
+import Data.Text (Text, pack, unpack)
 
 class Describable a where
   changeDescription :: Text -> a -> a
@@ -53,7 +57,7 @@ instance Describable (Dependency a) where
 -- | DSL entry point to build a 'ScenarioDescription'.
 scenario :: Text -> State (ScenarioDescription m) () -> ScenarioDescription m
 scenario name f = execState f sc0
-  where sc0 = SDesc name "" M.empty M.empty Nothing []
+  where sc0 = SDesc name "" M.empty M.empty Nothing [] (B False)
 
 -- | Attach a description to the 'Parameter' / 'Scnario'
 describe :: Describable a => Text -> State a ()
@@ -69,9 +73,11 @@ parameter name f = modify (addParam name param)
 -- | DSL entry point to build a 'Dependency a' within a scenario.
 dependency :: (Monad m) => Text -> State (Dependency m) () -> State (ScenarioDescription m) ()
 dependency name f = modify (addDep dep)
-  where addDep v sc0 = sc0 { sDeps = v:(sDeps sc0)}
+  where addDep v sc0 = sc0 { sDeps = v:(sDeps sc0) }
         dep = execState f dep0
-              where dep0 = Dep name "" (const (return True)) (const (return ()))
+              where dep0 = Dep name "" checkF solveF
+                    checkF = const (return True)
+                    solveF = return . fst
 
 -- | Set verification action for the dependency
 check :: (Execution m -> m Bool) -> State (Dependency m) ()
@@ -80,7 +86,7 @@ check f = do
   put $ dep0 { dCheck = f }
 
 -- | Set resolution action for the dependency
-resolve :: (Execution m -> m ()) -> State (Dependency m) ()
+resolve :: ((Execution m, Backend m) -> m (Execution m)) -> State (Dependency m) ()
 resolve f = do
   dep0 <- get
   put $ dep0 { dSolve = f }
@@ -132,6 +138,21 @@ analyze = appendHook "analyze"
 appendHook :: Text -> Step m () -> State (ScenarioDescription m) ()
 appendHook name f = modify (addHook name $ Action f)
   where addHook k v sc0 = sc0 { sHooks = M.insert k v (sHooks sc0) }
+
+-- | Defines the TExpr Bool to load ancestor
+requireTExpr :: (Monad m) => ScenarioDescription m -> TExpr Bool -> State (ScenarioDescription m) ()
+requireTExpr sc query = do
+    modify (\sc0 -> sc0 {sQuery = query})
+    dependency (pack $ show query) $ do
+        describe "auto-generated dependencies for `require` statement"
+        check (\_ -> return True)
+        resolve (\(exec,_) -> return exec)
+
+-- | Defines the TExpr Bool to load ancestor
+require :: (Monad m) => ScenarioDescription m -> Text -> State (ScenarioDescription m) ()
+require sc txt = requireTExpr sc query
+    where query = either (const deflt) (toTExpr deflt) (parseUExpr (unpack txt))
+          deflt = (B True)
 
 -- | Returns a 'Result' object for the given name.
 --

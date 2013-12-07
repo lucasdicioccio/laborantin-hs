@@ -13,9 +13,13 @@ import qualified Data.Text as T
  - Example
  -}
 
+pong :: ScenarioDescription EnvIO
+pong = scenario "pong" (return ())
+
 ping :: ScenarioDescription EnvIO
 ping = scenario "ping" $ do
   describe "ping to a remote server"
+  require pong "@sc.param 'foo' > 42" 
   parameter "destination" $ do
     describe "a destination server (host or ip)"
     values [str "example.com", str "probecraft.net", str "nonexistent"]
@@ -25,10 +29,6 @@ ping = scenario "ping" $ do
   parameter "burst-length" $ do
     describe "number of back-to-back packets to send"
     values [range 1 100 10] 
-  dependency "dummy" $ do
-    describe "always true"
-    check (\exec -> return True)
-    resolve (\exec -> liftIO (print "resolving"))
   setup $ do
       setVar "hello" ("world"::String)
       dbg "setting up scenario"

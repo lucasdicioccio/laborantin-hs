@@ -26,7 +26,7 @@ data IError = IError
 data ATExpr = forall a . TExpr a ::: TTyp a
 
 instance Show ATExpr where
-    show (expr ::: ty) = showTExpr expr
+    show (expr ::: ty) = show expr
 
 toTExpr :: TExpr Bool -> UExpr -> (TExpr Bool)
 toTExpr expr = fromMaybe expr . toTExpr'

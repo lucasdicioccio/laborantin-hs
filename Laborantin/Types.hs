@@ -73,6 +73,7 @@ data ScenarioDescription m = SDesc {
   , sHooks  :: M.Map Text (Action m)
   , sRecoveryAction :: Maybe (ExecutionError -> Action m)
   , sDeps   :: [Dependency m]
+  , sQuery  :: TExpr Bool
   } deriving (Show)
 
 data ParameterDescription = PDesc {
@@ -113,7 +114,7 @@ data Dependency m = Dep {
       dName     :: Text
     , dDesc     :: Text
     , dCheck    :: Execution m -> m Bool
-    , dSolve    :: Execution m -> m ()
+    , dSolve    :: (Execution m, Backend m) -> m (Execution m)
     }
 
 instance Eq (Dependency m) where
@@ -189,6 +190,33 @@ data TExpr :: * -> * where
     SilentNCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Rational
     TBind      :: String -> (a -> TExpr b) -> TExpr a -> TExpr b
 
+showTExpr :: TExpr a -> String
+showTExpr (N x)             = show x
+showTExpr (B x)             = show x
+showTExpr (S x)             = show x
+showTExpr (L x)             = show x
+showTExpr (T x)             = "t:" ++ show x
+showTExpr (Not x)           = "! " ++ "(" ++ showTExpr x ++ ")"
+showTExpr (And e1 e2)       = "(" ++ showTExpr e1 ++ " && " ++ showTExpr e2 ++ ")"
+showTExpr (Or e1 e2)        = "(" ++ showTExpr e1 ++ " || " ++ showTExpr e2 ++ ")"
+showTExpr (Contains e1 e2)  = "(" ++ showTExpr e1 ++ " in " ++ showTExpr e2 ++ ")"
+showTExpr (Gt e1 e2)        = "(" ++ showTExpr e1 ++ " >  " ++ showTExpr e2 ++ ")"
+showTExpr (Eq e1 e2)        = "(" ++ showTExpr e1 ++ " == " ++ showTExpr e2 ++ ")"
+showTExpr (Plus e1 e2)      = "(" ++ showTExpr e1 ++ " + " ++ showTExpr e2 ++ ")"
+showTExpr (Times e1 e2)     = "(" ++ showTExpr e1 ++ " * " ++ showTExpr e2 ++ ")"
+showTExpr ScName            = "@sc.name"
+showTExpr ScStatus          = "@sc.status"
+showTExpr ScTimestamp       = "@sc.timestamp"
+showTExpr (ScParam key)     = "@sc.param:" ++ show key
+showTExpr (SCoerce x)       = "str!{"++(showTExpr x)++"}"
+showTExpr (NCoerce x)       = "num!{"++(showTExpr )x++"}"
+showTExpr (SilentSCoerce x) = "str{"++(showTExpr x)++"}"
+showTExpr (SilentNCoerce x) = "num{"++(showTExpr x)++"}"
+showTExpr (TBind  str f x)  = "(" ++ str ++ " -> (" ++ showTExpr x ++ "))"
+
+instance (Show (TExpr a)) where
+    show = showTExpr
+
 data UExpr = UN Rational
     | UB Bool
     | US Text
@@ -211,3 +239,30 @@ data UExpr = UN Rational
     | UScStatus
     | UScTimestamp
     | UScParam     Text
+
+showUExpr :: UExpr -> String
+showUExpr (UN x) = show x
+showUExpr (UB x) = show x
+showUExpr (US x) = show x
+showUExpr (UL x) = show x
+showUExpr (UT x)              = "t:" ++ show x
+showUExpr (UNot x)            = "! " ++ "(" ++ showUExpr x ++ ")"
+showUExpr (UAnd e1 e2)        = "(" ++ showUExpr e1 ++ " and " ++ showUExpr e2 ++ ")"
+showUExpr (UOr e1 e2)         = "(" ++ showUExpr e1 ++ " or " ++ showUExpr e2 ++ ")"
+showUExpr (UContains e1 e2)   = "(" ++ showUExpr e1 ++ " in " ++ showUExpr e2 ++ ")"
+showUExpr (UGt e1 e2)         = "(" ++ showUExpr e1 ++ " > " ++ showUExpr e2 ++ ")"
+showUExpr (UGte  e1 e2)       = "(" ++ showUExpr e1 ++ " >= " ++ showUExpr e2 ++ ")"
+showUExpr (ULt e1 e2)         = "(" ++ showUExpr e1 ++ " < " ++ showUExpr e2 ++ ")"
+showUExpr (ULte e1 e2)        = "(" ++ showUExpr e1 ++ " <= " ++ showUExpr e2 ++ ")"
+showUExpr (UEq e1 e2)         = "(" ++ showUExpr e1 ++ " == " ++ showUExpr e2 ++ ")"
+showUExpr (UPlus e1 e2)       = "(" ++ showUExpr e1 ++ " + " ++ showUExpr e2 ++ ")"
+showUExpr (UMinus e1 e2)      = "(" ++ showUExpr e1 ++ " - " ++ showUExpr e2 ++ ")"
+showUExpr (UTimes e1 e2)      = "(" ++ showUExpr e1 ++ " * " ++ showUExpr e2 ++ ")"
+showUExpr (UDiv  e1 e2)       = "(" ++ showUExpr e1 ++ " / " ++ showUExpr e2 ++ ")"
+showUExpr UScName          = "@sc.name"
+showUExpr UScStatus        = "@sc.status"
+showUExpr UScTimestamp     = "@sc.timestamp"
+showUExpr (UScParam key)   = "@sc.param:" ++ show key
+
+instance (Show UExpr) where
+    show = showUExpr

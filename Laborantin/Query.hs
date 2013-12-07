@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Laborantin.Query (matchTExpr, matchTExpr', simplifyOneBoolLevel, showTExpr, showUExpr, expandParamSpace) where
+module Laborantin.Query (matchTExpr, matchTExpr', simplifyOneBoolLevel, expandParamSpace) where
 
 import Laborantin.Types
 import qualified Data.Map as M
@@ -109,56 +109,4 @@ toParamValues (S x) = [StringParam x]
 toParamValues (L x) = concatMap toParamValues x
 toParamValues _     = []
 
-showTExpr :: TExpr a -> String
-showTExpr (N x)             = show x
-showTExpr (B x)             = show x
-showTExpr (S x)             = show x
-showTExpr (L x)             = show x
-showTExpr (T x)             = "t:" ++ show x
-showTExpr (Not x)           = "! " ++ "(" ++ showTExpr x ++ ")"
-showTExpr (And e1 e2)       = "(" ++ showTExpr e1 ++ " && " ++ showTExpr e2 ++ ")"
-showTExpr (Or e1 e2)        = "(" ++ showTExpr e1 ++ " || " ++ showTExpr e2 ++ ")"
-showTExpr (Contains e1 e2)  = "(" ++ showTExpr e1 ++ " in " ++ showTExpr e2 ++ ")"
-showTExpr (Gt e1 e2)        = "(" ++ showTExpr e1 ++ " >  " ++ showTExpr e2 ++ ")"
-showTExpr (Eq e1 e2)        = "(" ++ showTExpr e1 ++ " == " ++ showTExpr e2 ++ ")"
-showTExpr (Plus e1 e2)      = "(" ++ showTExpr e1 ++ " + " ++ showTExpr e2 ++ ")"
-showTExpr (Times e1 e2)     = "(" ++ showTExpr e1 ++ " * " ++ showTExpr e2 ++ ")"
-showTExpr ScName            = "@sc.name"
-showTExpr ScStatus          = "@sc.status"
-showTExpr ScTimestamp       = "@sc.timestamp"
-showTExpr (ScParam key)     = "@sc.param:" ++ show key
-showTExpr (SCoerce x)       = "str!{"++(showTExpr x)++"}"
-showTExpr (NCoerce x)       = "num!{"++(showTExpr )x++"}"
-showTExpr (SilentSCoerce x) = "str{"++(showTExpr x)++"}"
-showTExpr (SilentNCoerce x) = "num{"++(showTExpr x)++"}"
-showTExpr (TBind  str f x)  = "(" ++ str ++ " -> (" ++ showTExpr x ++ "))"
 
-instance (Show (TExpr a)) where
-    show = showTExpr
-
-showUExpr :: UExpr -> String
-showUExpr (UN x) = show x
-showUExpr (UB x) = show x
-showUExpr (US x) = show x
-showUExpr (UL x) = show x
-showUExpr (UT x)              = "t:" ++ show x
-showUExpr (UNot x)            = "! " ++ "(" ++ showUExpr x ++ ")"
-showUExpr (UAnd e1 e2)        = "(" ++ showUExpr e1 ++ " and " ++ showUExpr e2 ++ ")"
-showUExpr (UOr e1 e2)         = "(" ++ showUExpr e1 ++ " or " ++ showUExpr e2 ++ ")"
-showUExpr (UContains e1 e2)   = "(" ++ showUExpr e1 ++ " in " ++ showUExpr e2 ++ ")"
-showUExpr (UGt e1 e2)         = "(" ++ showUExpr e1 ++ " > " ++ showUExpr e2 ++ ")"
-showUExpr (UGte  e1 e2)       = "(" ++ showUExpr e1 ++ " >= " ++ showUExpr e2 ++ ")"
-showUExpr (ULt e1 e2)         = "(" ++ showUExpr e1 ++ " < " ++ showUExpr e2 ++ ")"
-showUExpr (ULte e1 e2)        = "(" ++ showUExpr e1 ++ " <= " ++ showUExpr e2 ++ ")"
-showUExpr (UEq e1 e2)         = "(" ++ showUExpr e1 ++ " == " ++ showUExpr e2 ++ ")"
-showUExpr (UPlus e1 e2)       = "(" ++ showUExpr e1 ++ " + " ++ showUExpr e2 ++ ")"
-showUExpr (UMinus e1 e2)      = "(" ++ showUExpr e1 ++ " - " ++ showUExpr e2 ++ ")"
-showUExpr (UTimes e1 e2)      = "(" ++ showUExpr e1 ++ " * " ++ showUExpr e2 ++ ")"
-showUExpr (UDiv  e1 e2)       = "(" ++ showUExpr e1 ++ " / " ++ showUExpr e2 ++ ")"
-showUExpr UScName          = "@sc.name"
-showUExpr UScStatus        = "@sc.status"
-showUExpr UScTimestamp     = "@sc.timestamp"
-showUExpr (UScParam key)   = "@sc.param:" ++ show key
-
-instance (Show UExpr) where
-    show = showUExpr

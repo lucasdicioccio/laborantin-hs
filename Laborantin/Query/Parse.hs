@@ -71,7 +71,8 @@ scparam = UScParam . T.pack <$> (syntax1 <|> syntax2)
 sctimestamp = string "@sc.timestamp" *> return UScTimestamp
 
 quotedString :: Parsec String u String
-quotedString = char '"' *> many (noneOf "\"") <* char '"'
+quotedString = try (char '"' *> many (noneOf "\"") <* char '"')
+               <|> (char '\'' *> many (noneOf "'") <* char '\'')
 
 plainString :: Parsec String u String
 plainString = many (noneOf " ")
