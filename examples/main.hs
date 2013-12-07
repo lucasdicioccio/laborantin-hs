@@ -14,7 +14,10 @@ import qualified Data.Text as T
  -}
 
 pong :: ScenarioDescription EnvIO
-pong = scenario "pong" (return ())
+pong = scenario "pong" $ do
+    parameter "foo" $ do
+        describe "foo"
+        values [str "foo"]
 
 ping :: ScenarioDescription EnvIO
 ping = scenario "ping" $ do

@@ -212,5 +212,5 @@ runLabor xs labor = do
               runSc         = void . runEnvIO
               loadMatching  tst = load defaultBackend xs' (query tst)
               loadAndRemove  tst = loadMatching tst >>= mapM (remove defaultBackend)
-              loadAndAnalyze tst = loadMatching tst >>= mapM (analyze defaultBackend)
+              loadAndAnalyze tst = loadMatching tst >>= mapM (runAnalyze defaultBackend)
               targetExecs existing = concatMap (prepare defaultBackend expander existing) xs'

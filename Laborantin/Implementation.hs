@@ -155,19 +155,24 @@ prepareNewScenario  sc params = do
 
 resolveDependencies :: Execution EnvIO -> EnvIO ()
 resolveDependencies exec = do
-    pending <- getPendingDeps exec (sDeps $ eScenario exec)
+    pending <- getPendingDeps exec deps 
+    liftIO $ print pending
     resolveDependencies' exec [] pending
+    where deps = sDeps $ eScenario exec
 
 resolveDependencies' :: Execution EnvIO -> [Dependency EnvIO] -> [Dependency EnvIO] -> EnvIO ()
 resolveDependencies' exec _ []   = return ()
-resolveDependencies' exec attempted trying 
-  | all (\d -> elem d attempted) trying = error "cannot solve dependencies"
+resolveDependencies' exec attempted deps
+  | all (\d -> elem d attempted) deps   = error "cannot solve dependencies"
   | otherwise                           = do
-    mapM (flip dSolve (exec, defaultBackend)) trying
-    pending <- getPendingDeps exec trying
-    resolveDependencies' exec (trying ++ attempted) pending
+    let dep = head deps
+    liftIO . print $ "trying to solve " ++ (T.unpack $ dName dep)
+    exec2 <- dSolve dep (exec, defaultBackend)
+    getPendingDeps exec2 (drop 1 deps) >>= resolveDependencies' exec2 (dep:attempted)
 
-getPendingDeps exec deps = map fst . filter (not . snd). zip deps <$> mapM (flip dCheck exec) deps
+getPendingDeps :: (Functor m, Monad m) => Execution m -> [Dependency m] -> m [Dependency m]
+getPendingDeps exec deps = keepFailedChecks <$> mapM (flip dCheck exec) deps
+    where keepFailedChecks = map fst . filter (not . snd). zip deps 
 
 loadExisting :: [ScenarioDescription EnvIO] -> TExpr Bool -> EnvIO [Execution EnvIO]
 loadExisting scs qexpr = do

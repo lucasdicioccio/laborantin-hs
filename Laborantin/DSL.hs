@@ -31,6 +31,7 @@ module Laborantin.DSL (
 ) where
 
 import qualified Data.Map as M
+import Laborantin
 import Laborantin.Types
 import Laborantin.Query
 import Laborantin.Query.Parse
@@ -41,6 +42,7 @@ import Control.Monad.Error
 import Control.Applicative
 import Data.Dynamic
 import Data.Text (Text, pack, unpack)
+import qualified Data.Text as T
 
 class Describable a where
   changeDescription :: Text -> a -> a
@@ -140,16 +142,23 @@ appendHook name f = modify (addHook name $ Action f)
   where addHook k v sc0 = sc0 { sHooks = M.insert k v (sHooks sc0) }
 
 -- | Defines the TExpr Bool to load ancestor
-requireTExpr :: (Monad m) => ScenarioDescription m -> TExpr Bool -> State (ScenarioDescription m) ()
+requireTExpr :: (MonadIO m, Monad m) => ScenarioDescription m -> TExpr Bool -> State (ScenarioDescription m) ()
 requireTExpr sc query = do
+    let depName = T.concat [(sName sc),  " ~> ",(pack $ show query)]
     modify (\sc0 -> sc0 {sQuery = query})
-    dependency (pack $ show query) $ do
-        describe "auto-generated dependencies for `require` statement"
-        check (\_ -> return True)
-        resolve (\(exec,_) -> return exec)
+    dependency depName $ do
+        describe "auto-generated dependency for `require` statement"
+        check (\exec -> return (null $ missingAncestors exec))
+        resolve $ \(exec,backend) -> do
+            let ancestors = filter ((sName sc ==) . sName . eScenario) (eAncestors exec)
+            newAncestors <- sequence $ prepare backend query ancestors sc
+            return (exec { eAncestors = newAncestors ++ ancestors })  
+
+    where missingAncestors exec = missingParameterSets query ancestors sc
+                                   where ancestors = filter ((sName sc ==) . sName . eScenario) (eAncestors exec)
 
 -- | Defines the TExpr Bool to load ancestor
-require :: (Monad m) => ScenarioDescription m -> Text -> State (ScenarioDescription m) ()
+require :: (MonadIO m, Monad m) => ScenarioDescription m -> Text -> State (ScenarioDescription m) ()
 require sc txt = requireTExpr sc query
     where query = either (const deflt) (toTExpr deflt) (parseUExpr (unpack txt))
           deflt = (B True)
