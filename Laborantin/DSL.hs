@@ -6,6 +6,7 @@ module Laborantin.DSL (
     ,   describe
     ,   parameter
     ,   require
+    ,   requireTExpr
     ,   dependency
     ,   check
     ,   resolve
@@ -144,11 +145,12 @@ appendHook name f = modify (addHook name $ Action f)
 -- | Defines the TExpr Bool to load ancestor
 requireTExpr :: (MonadIO m, Monad m) => ScenarioDescription m -> TExpr Bool -> State (ScenarioDescription m) ()
 requireTExpr sc query = do
-    let depName = T.concat [(sName sc),  " ~> ",(pack $ show query)]
+    let depName = T.concat [(sName sc),  " ~> ", (pack $ show query)]
     modify (\sc0 -> sc0 {sQuery = query})
     dependency depName $ do
         describe "auto-generated dependency for `require` statement"
-        check (\exec -> return (null $ missingAncestors exec))
+        check $ \exec -> do
+            return (null $ missingAncestors exec)
         resolve $ \(exec,backend) -> do
             let ancestors = filter ((sName sc ==) . sName . eScenario) (eAncestors exec)
             newAncestors <- sequence $ prepare backend query ancestors sc

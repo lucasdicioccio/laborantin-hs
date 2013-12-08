@@ -47,4 +47,4 @@ ping = scenario "ping" $ do
   recover $ \err -> dbg $ T.append "here we could recover from error: " (T.pack $ show err)
   analyze $ liftIO . print $ "analyze action"
 
-main = defaultMain [ping]
+main = defaultMain [ping, pong]

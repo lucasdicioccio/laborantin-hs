@@ -128,8 +128,8 @@ updateCompletionTime exec t1 = exec {eTimeStamps = (t0,t1)}
 
 advertise :: Execution m -> Text
 advertise exec = T.pack $ unlines [ "scenario: " ++ (show . sName . eScenario) exec
-                         , "rundir: " ++ ePath exec
-                         , "json-params: " ++ (C.unpack . encode . eParamSet) exec
+                         , "         rundir: " ++ ePath exec
+                         , "         json-params: " ++ (C.unpack . encode . eParamSet) exec
                          ]
 
 bPrint :: (MonadIO m, Show a) => a -> m ()
@@ -140,6 +140,7 @@ bPrintT = liftIO . T.putStrLn . (T.append "backend> ")
 
 prepareNewScenario :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
 prepareNewScenario  sc params = do
+    bPrint $ T.append "preparing " (sName sc)
     (now,uuid) <- liftIO $ do
                 now <- getCurrentTime
                 id <- randomIO :: IO UUID
@@ -182,7 +183,7 @@ getPendingDeps :: (Functor m, Monad m, MonadIO m) => Execution m -> [Dependency 
 getPendingDeps exec deps = keepFailedChecks <$> mapM checkDep deps
     where keepFailedChecks = map fst . filter (not . snd). zip deps 
           checkDep dep = do
-            liftIO $ print "checking" >> print dep
+            bPrintT $ T.append "checking" (dName dep)
             dCheck dep exec 
 
 loadExisting :: [ScenarioDescription EnvIO] -> TExpr Bool -> EnvIO [Execution EnvIO]
