@@ -1,6 +1,11 @@
 Changelog
 =========
 
+# 0.1.3.0 (2013-12-8)
+* add TExpr Bool parameter expansions
+* add ancestors querying and loading
+* add require helper to load/generate ancestors
+
 # 0.1.2.0 (2013-11-22)
 * change timestamp format (data-incompatible) from custom to UTCTime
 * add TExpr and UExpr module
