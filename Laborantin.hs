@@ -36,14 +36,19 @@ prepare :: (MonadIO m)    => Backend m
                           -> [Execution m]
                           -> ScenarioDescription m
                           -> [m (Execution m)]
-prepare b expr execs sc = map f (missingParameterSets sc expr existing)
-          where f = execute b sc
-                existing = map eParamSet execs
+prepare b expr execs sc = map toAction neededParamSets
+          where toAction = execute b sc
+                neededParamSets = missingParameterSets sc expr existing
+                                  where existing = map eParamSet execs
 
+-- | Like matchingParameterSets but also remove existing ParameterSet given as
+-- third parameter.
 missingParameterSets :: ScenarioDescription m -> TExpr Bool -> [ParameterSet] -> [ParameterSet]
 missingParameterSets sc expr sets = listDiff target sets
     where target = matchingParameterSets sc expr
 
+-- | Like expandParameterSets but also filter ParameterSet to only those that
+-- actually match the TExpr query.
 matchingParameterSets :: ScenarioDescription m -> TExpr Bool -> [ParameterSet]
 matchingParameterSets sc expr = filter matching allSets
     where matching = matchTExpr' expr sc
