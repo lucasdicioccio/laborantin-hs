@@ -105,13 +105,13 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
                             finalizer exec
                             now <- liftIO $ getCurrentTime
                             let exec' = updateCompletionTime exec now
-                            liftIO . putStrLn $ "execution finished\n"
+                            bPrintT $ "execution finished\n"
                             liftIO $ BSL.writeFile (rundir ++ "/execution.json") (encode exec')
                             where rundir = ePath exec
         setup             = callHooks "setup" . eScenario
         run               = callHooks "run" . eScenario
         teardown          = callHooks "teardown" . eScenario
-        analyze exec      = liftIO (T.putStrLn $ advertise exec) >> callHooks "analyze" (eScenario exec)
+        analyze exec      = bPrintT (advertise exec) >> callHooks "analyze" (eScenario exec)
         recover err exec  = unAction (doRecover err)
                             where doRecover = fromMaybe (\_ -> Action $ return ()) (sRecoveryAction $ eScenario exec) 
         result exec       = return . defaultResult exec
@@ -132,6 +132,12 @@ advertise exec = T.pack $ unlines [ "scenario: " ++ (show . sName . eScenario) e
                          , "json-params: " ++ (C.unpack . encode . eParamSet) exec
                          ]
 
+bPrint :: (MonadIO m, Show a) => a -> m ()
+bPrint = liftIO . putStrLn . ("backend> " ++) . show
+
+bPrintT :: (MonadIO m) => Text -> m ()
+bPrintT = liftIO . T.putStrLn . (T.append "backend> ")
+
 prepareNewScenario :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
 prepareNewScenario  sc params = do
     (now,uuid) <- liftIO $ do
@@ -140,7 +146,7 @@ prepareNewScenario  sc params = do
                 return (now,id)
     let rundir = intercalate "/" [T.unpack (sName sc), show uuid]
     let exec = Exec sc params rundir Running [] (now,now)
-    liftIO $ print "resolving dependencies"
+    bPrint "resolving dependencies"
     resolveDependencies exec
     handles <- liftIO $ do
         createDirectoryIfMissing True rundir
@@ -149,14 +155,14 @@ prepareNewScenario  sc params = do
         h1 <- fileHandler (rundir ++ "/execution-log.txt") DEBUG
         h2 <- log4jFileHandler (rundir ++ "/execution-log.xml") DEBUG
         forM_ [h1,h2] (updateGlobalLogger (loggerName exec) . addHandler)
-        T.putStrLn $ advertise exec
+        bPrintT $ advertise exec
         return [h1,h2]
     return (exec, \_ -> liftIO $ forM_ handles close)
 
 resolveDependencies :: Execution EnvIO -> EnvIO ()
 resolveDependencies exec = do
     pending <- getPendingDeps exec deps 
-    liftIO $ print pending
+    bPrint pending
     resolveDependencies' exec [] pending
     where deps = sDeps $ eScenario exec
 
@@ -166,13 +172,18 @@ resolveDependencies' exec attempted deps
   | all (\d -> elem d attempted) deps   = error "cannot solve dependencies"
   | otherwise                           = do
     let dep = head deps
-    liftIO . print $ "trying to solve " ++ (T.unpack $ dName dep)
+    bPrint $ "trying to solve " ++ (T.unpack $ dName dep)
     exec2 <- dSolve dep (exec, defaultBackend)
-    getPendingDeps exec2 (drop 1 deps) >>= resolveDependencies' exec2 (dep:attempted)
+    getPendingDeps exec2 deps >>= resolveDependencies' exec2 (dep:attempted)
 
-getPendingDeps :: (Functor m, Monad m) => Execution m -> [Dependency m] -> m [Dependency m]
-getPendingDeps exec deps = keepFailedChecks <$> mapM (flip dCheck exec) deps
+-- | Evaluates and returns, for an execution, the list of failing dependencies 
+--
+getPendingDeps :: (Functor m, Monad m, MonadIO m) => Execution m -> [Dependency m] -> m [Dependency m]
+getPendingDeps exec deps = keepFailedChecks <$> mapM checkDep deps
     where keepFailedChecks = map fst . filter (not . snd). zip deps 
+          checkDep dep = do
+            liftIO $ print "checking" >> print dep
+            dCheck dep exec 
 
 loadExisting :: [ScenarioDescription EnvIO] -> TExpr Bool -> EnvIO [Execution EnvIO]
 loadExisting scs qexpr = do
