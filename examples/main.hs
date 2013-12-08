@@ -18,11 +18,16 @@ pong = scenario "pong" $ do
     parameter "foo" $ do
         describe "foo"
         values [str "foo"]
+    setup (return ())
+    run (return ())
+    teardown (return ())
+    recover (const (return ()))
+    analyze (return ())
 
 ping :: ScenarioDescription EnvIO
 ping = scenario "ping" $ do
   describe "ping to a remote server"
-  require pong "@sc.param 'foo' > 42" 
+  require pong "@sc.param 'foo' == 'foo'" 
   parameter "destination" $ do
     describe "a destination server (host or ip)"
     values [str "example.com", str "probecraft.net", str "nonexistent"]
