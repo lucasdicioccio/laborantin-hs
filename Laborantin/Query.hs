@@ -78,35 +78,42 @@ coerceNumberParam :: Text -> Param -> Either EvalError (Rational)
 coerceNumberParam name (Just (NumberParam r)) = Right r
 coerceNumberParam name _ = Left (EvalError $ "could not coerce "++ T.unpack name ++" to number")
 
+-- | Expands a ParameterSpace to all values that could match a TExpr Bool.
+--
+-- Currently only supports countably finite expansions of parameters. 
+-- That is TExpr Bool such as (@sc.param "param" > 32) are ignored.
+-- Instead (@sc.param "param" in ["foo", "bar"]) gets expanded to ("param", [StringParam "foo", StringParam "bar"])
+-- Supported expensions are  And / Or / Eq / Contains.
+--
+-- The idea is that you can generate a list of Execution to run by first
+-- expanding all possible points in the ParameterSpace modified by the TExpr,
+-- and then filter these possible points using a same TExpr.
+--
 expandParamSpace :: ParameterSpace -> TExpr Bool -> ParameterSpace
-expandParamSpace params (Eq (ScParam key) expr)        =
-    overWriteParamSpace params key (toParamValues expr)
-expandParamSpace params (Or expr1 expr2)               =
-    mergeParamSpaces ps1 ps2
-    where ps1 = expandParamSpace params expr1
-          ps2 = expandParamSpace params expr2 
-expandParamSpace params (And expr1 expr2)              =
-    mergeParamSpaces ps1 ps2
-    where ps1 = expandParamSpace params expr1
-          ps2 = expandParamSpace params expr2 
-expandParamSpace params (Contains (SCoerce (ScParam key)) expr)  =
-    overWriteParamSpace params key (toParamValues expr)
-expandParamSpace params (Contains (NCoerce (ScParam key)) expr)  =
-    overWriteParamSpace params key (toParamValues expr)
-expandParamSpace params (Contains (SilentSCoerce (ScParam key)) expr)  =
-    overWriteParamSpace params key (toParamValues expr)
-expandParamSpace params (Contains (SilentNCoerce (ScParam key)) expr)  =
-    overWriteParamSpace params key (toParamValues expr)
-expandParamSpace params _                              = params
+expandParamSpace params query = case query of
+    (Or expr1 expr2) -> mergeParamSpaces ps1 ps2
+        where ps1 = expand expr1
+              ps2 = expand expr2 
+    (And expr1 expr2)  -> mergeParamSpaces ps1 ps2
+        where ps1 = expand expr1
+              ps2 = expand expr2 
+    (Eq (SCoerce (ScParam key)) expr)               -> update key (toParamValues expr)
+    (Eq (NCoerce (ScParam key)) expr)               -> update key (toParamValues expr)
+    (Eq (SilentSCoerce (ScParam key)) expr)         -> update key (toParamValues expr)
+    (Eq (SilentNCoerce (ScParam key)) expr)         -> update key (toParamValues expr)
+    (Contains (SCoerce (ScParam key)) expr)         -> update key (toParamValues expr)
+    (Contains (NCoerce (ScParam key)) expr)         -> update key (toParamValues expr)
+    (Contains (SilentSCoerce (ScParam key)) expr)   -> update key (toParamValues expr)
+    (Contains (SilentNCoerce (ScParam key)) expr)   -> update key (toParamValues expr)
+    _   -> params
 
-overWriteParamSpace :: ParameterSpace -> Text -> [ParameterValue] -> ParameterSpace
-overWriteParamSpace ps key values = M.updateWithKey f key ps
-    where f k param = Just (param {pValues = values})
+    where update = updateParam params
+          expand = expandParamSpace params
 
+-- | Interprets a `TExpr a` into a list of ParameterValue when it makes sense (i.e.,
+-- on TExpr String / TExpr Rational / TExpr [String] / TExpr [Rational] )
 toParamValues :: TExpr a -> [ParameterValue]
 toParamValues (N x) = [NumberParam x]
 toParamValues (S x) = [StringParam x]
 toParamValues (L x) = concatMap toParamValues x
 toParamValues _     = []
-
-

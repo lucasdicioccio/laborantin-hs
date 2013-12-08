@@ -154,8 +154,9 @@ requireTExpr sc query = do
             newAncestors <- sequence $ prepare backend query ancestors sc
             return (exec { eAncestors = newAncestors ++ ancestors })  
 
-    where missingAncestors exec = missingParameterSets query ancestors sc
-                                   where ancestors = filter ((sName sc ==) . sName . eScenario) (eAncestors exec)
+    where missingAncestors exec = missingParameterSets sc query existing
+                                   where  existing = map eParamSet ancestors
+                                          ancestors = filter ((sName sc ==) . sName . eScenario) (eAncestors exec)
 
 -- | Defines the TExpr Bool to load ancestor
 require :: (MonadIO m, Monad m) => ScenarioDescription m -> Text -> State (ScenarioDescription m) ()

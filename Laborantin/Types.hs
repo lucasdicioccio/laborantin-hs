@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -10,8 +11,11 @@ module Laborantin.Types (
     ,   ParameterValue (..)
     ,   ParameterSpace
     ,   ParameterSet
+    ,   emptyScenario
+    ,   emptyParameter
     ,   paramSets
     ,   mergeParamSpaces
+    ,   updateParam
     ,   expandValue
     ,   Result (..)
     ,   Backend (..)
@@ -76,11 +80,17 @@ data ScenarioDescription m = SDesc {
   , sQuery  :: TExpr Bool
   } deriving (Show)
 
+emptyScenario :: ScenarioDescription m
+emptyScenario = SDesc "" "" M.empty M.empty Nothing [] noQuery
+
 data ParameterDescription = PDesc {
     pName   :: Text
   , pDesc   :: Text
   , pValues :: [ParameterValue]
   } deriving (Show,Eq,Ord)
+
+emptyParameter :: ParameterDescription
+emptyParameter = PDesc "" "" []
 
 data ParameterValue = StringParam Text 
   | NumberParam Rational
@@ -142,6 +152,11 @@ mergeParamSpaces ps1 ps2 = M.mergeWithKey f id id ps1 ps2
     where f k v1 v2 = Just (v1 { pValues = values })
                         where values = nub $ (pValues v1) ++ (pValues v2)
 
+-- | 
+updateParam :: ParameterSpace -> Text -> [ParameterValue] -> ParameterSpace
+updateParam ps key values = M.updateWithKey f key ps
+    where f k param = Just (param {pValues = values})
+
 data Backend m = Backend {
     bName      :: Text
   , bPrepareExecution  :: ScenarioDescription m -> ParameterSet -> m (Execution m,Finalizer m)
@@ -189,6 +204,9 @@ data TExpr :: * -> * where
     SilentSCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Text
     SilentNCoerce     :: TExpr (Text, Maybe ParameterValue) -> TExpr Rational
     TBind      :: String -> (a -> TExpr b) -> TExpr a -> TExpr b
+
+noQuery :: TExpr Bool
+noQuery = B False
 
 showTExpr :: TExpr a -> String
 showTExpr (N x)             = show x
