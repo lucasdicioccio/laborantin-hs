@@ -112,12 +112,8 @@ open-source: use it, fork it, or clone it.
 
 # Roadmap
 
-For version 1.2
+For version 0.1.4.x
 
-* Use system locale rather than default locale for time parsing
-* Add a scSelector :: TExpr Bool field to a scenario to load ancestors at prepare-time
-  - add handy "require" helper that sets a dep + scSelector at the same time
-* exports to propose exported files using "show-exports" command
-
-# Annoyances/Bugs
-* the "continue" mode doesn't do what it should anymore, don't use it for now
+* [improvement] Use './results' as root dir in defaultBackend
+* [improvement] Use system locale rather than default locale for time parsing
+* [feature] exports to propose exported files using "show-exports" command
