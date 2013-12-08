@@ -111,7 +111,7 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
         setup             = callHooks "setup" . eScenario
         run               = callHooks "run" . eScenario
         teardown          = callHooks "teardown" . eScenario
-        analyze exec      = bPrintT (advertise exec) >> callHooks "analyze" (eScenario exec)
+        analyze exec      = callHooks "analyze" (eScenario exec)
         recover err exec  = unAction (doRecover err)
                             where doRecover = fromMaybe (\_ -> Action $ return ()) (sRecoveryAction $ eScenario exec) 
         result exec       = return . defaultResult exec
@@ -146,9 +146,10 @@ prepareNewScenario  sc params = do
                 id <- randomIO :: IO UUID
                 return (now,id)
     let rundir = intercalate "/" [T.unpack (sName sc), show uuid]
-    let exec = Exec sc params rundir Running [] (now,now)
+    let newExec = Exec sc params rundir Running [] (now,now)
     bPrint "resolving dependencies"
-    resolveDependencies exec
+    exec <- resolveDependencies newExec
+    bPrintT $ advertise exec
     handles <- liftIO $ do
         createDirectoryIfMissing True rundir
         BSL.writeFile (rundir ++ "/execution.json") (encode exec)
@@ -156,26 +157,29 @@ prepareNewScenario  sc params = do
         h1 <- fileHandler (rundir ++ "/execution-log.txt") DEBUG
         h2 <- log4jFileHandler (rundir ++ "/execution-log.xml") DEBUG
         forM_ [h1,h2] (updateGlobalLogger (loggerName exec) . addHandler)
-        bPrintT $ advertise exec
         return [h1,h2]
     return (exec, \_ -> liftIO $ forM_ handles close)
 
-resolveDependencies :: Execution EnvIO -> EnvIO ()
+resolveDependencies :: Execution EnvIO -> EnvIO (Execution EnvIO)
 resolveDependencies exec = do
     pending <- getPendingDeps exec deps 
-    bPrint pending
     resolveDependencies' exec [] pending
     where deps = sDeps $ eScenario exec
 
-resolveDependencies' :: Execution EnvIO -> [Dependency EnvIO] -> [Dependency EnvIO] -> EnvIO ()
-resolveDependencies' exec _ []   = return ()
-resolveDependencies' exec attempted deps
-  | all (\d -> elem d attempted) deps   = error "cannot solve dependencies"
-  | otherwise                           = do
-    let dep = head deps
+resolveDependencies' :: Execution EnvIO -> [Dependency EnvIO] -> [Dependency EnvIO] -> EnvIO (Execution EnvIO)
+resolveDependencies' exec [] []                = return exec
+resolveDependencies' exec failed []            = error "cannot solve dependencies"
+resolveDependencies' exec failed (dep:pending) = do
     bPrint $ "trying to solve " ++ (T.unpack $ dName dep)
     exec2 <- dSolve dep (exec, defaultBackend)
-    getPendingDeps exec2 deps >>= resolveDependencies' exec2 (dep:attempted)
+    success <- dCheck dep exec2 
+    case success of
+        True -> do
+            bPrint $ "successfully solved " ++ (T.unpack $ dName dep)
+            resolveDependencies' exec2 [] (pending ++ failed)
+        False -> do
+            bPrint $ "failed to solve " ++ (T.unpack $ dName dep)
+            resolveDependencies' exec2 failed pending
 
 -- | Evaluates and returns, for an execution, the list of failing dependencies 
 --
@@ -183,7 +187,7 @@ getPendingDeps :: (Functor m, Monad m, MonadIO m) => Execution m -> [Dependency 
 getPendingDeps exec deps = keepFailedChecks <$> mapM checkDep deps
     where keepFailedChecks = map fst . filter (not . snd). zip deps 
           checkDep dep = do
-            bPrintT $ T.append "checking" (dName dep)
+            bPrintT $ T.append "checking " (dName dep)
             dCheck dep exec 
 
 loadExisting :: [ScenarioDescription EnvIO] -> TExpr Bool -> EnvIO [Execution EnvIO]
