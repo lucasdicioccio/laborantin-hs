@@ -28,6 +28,7 @@ import Data.Maybe
 import Data.UUID
 import System.Directory
 import System.Random
+import System.IO.Error
 import System.Log.Logger
 import System.Log.Handler (close)
 import System.Log.Handler.Simple
@@ -56,7 +57,7 @@ instance ToJSON (Execution a) where
                                                     , "params" .= params
                                                     , "path" .= path
                                                     , "status" .= status
-                                                    , "ancestors" .= (map toJSON es)
+                                                    , "ancestors" .= ancestors
                                                     , "timestamps" .= tsts
                                                     ] 
                                              where ancestors = map f es
@@ -195,11 +196,14 @@ loadExisting scs qexpr = do
     concat <$> mapM f scs
     where f :: ScenarioDescription EnvIO -> EnvIO [Execution EnvIO]
           f sc = do
-            paths <- map ((name ++ "/") ++) . filter notDot <$> liftIO (getDirectoryContents name)
+            paths <- map ((name ++ "/") ++) . filter notDot <$> liftIO (getDirectoryContents' name)
             allExecs <- mapM (loadOne sc scs) paths
             return $ filter (matchTExpr qexpr) allExecs
             where notDot dirname = take 1 dirname /= "."
                   name = T.unpack $ sName sc
+
+                  getDirectoryContents' dir = catchIOError (getDirectoryContents dir)
+                                                           (\e -> if isDoesNotExistError e then return [] else ioError e)
 
 loadOne :: ScenarioDescription EnvIO -> [ScenarioDescription EnvIO] -> FilePath -> EnvIO (Execution EnvIO)
 loadOne sc scs path = do
