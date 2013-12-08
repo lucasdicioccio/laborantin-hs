@@ -32,6 +32,7 @@ module Laborantin.DSL (
 ) where
 
 import qualified Data.Map as M
+import Data.List (partition, nubBy)
 import Laborantin
 import Laborantin.Types
 import Laborantin.Query
@@ -150,15 +151,17 @@ requireTExpr sc query = do
     dependency depName $ do
         describe "auto-generated dependency for `require` statement"
         check $ \exec -> do
-            return (null $ missingAncestors exec)
-        resolve $ \(exec,backend) -> do
             let ancestors = filter ((sName sc ==) . sName . eScenario) (eAncestors exec)
-            newAncestors <- sequence $ prepare backend query ancestors sc
-            return (exec { eAncestors = newAncestors ++ ancestors })  
-
-    where missingAncestors exec = missingParameterSets sc query existing
-                                   where  existing = map eParamSet ancestors
-                                          ancestors = filter ((sName sc ==) . sName . eScenario) (eAncestors exec)
+            let existing = map eParamSet ancestors
+            let missing = missingParameterSets sc query existing
+            return (null $ missing)
+        resolve $ \(exec,backend) -> do
+            storedAncestors <- load backend [sc] query
+            let (execAncestors, otherAncestors) = partition ((sName sc ==) . sName . eScenario) (eAncestors exec)
+            let allAncestors = nubBy (samePath) (storedAncestors ++ execAncestors)
+            newAncestors <- sequence $ prepare backend query allAncestors sc
+            return (exec { eAncestors = newAncestors ++ allAncestors })  
+            where samePath e1 e2 = ePath e1 == ePath e2
 
 -- | Defines the TExpr Bool to load ancestor
 require :: (MonadIO m, Monad m) => ScenarioDescription m -> Text -> State (ScenarioDescription m) ()
