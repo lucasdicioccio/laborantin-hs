@@ -123,22 +123,30 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
 
         load               = loadExisting
 
+-- | Modifies the the second timestamp of an Execution
 updateCompletionTime :: Execution m -> UTCTime -> Execution m
 updateCompletionTime exec t1 = exec {eTimeStamps = (t0,t1)}  
     where t0 = fst $ eTimeStamps exec
 
+-- | Returns a Text advertising the Execution
 advertise :: Execution m -> Text
 advertise exec = T.pack $ unlines [ "scenario: " ++ (show . sName . eScenario) exec
                          , "         rundir: " ++ ePath exec
                          , "         json-params: " ++ (C.unpack . encode . eParamSet) exec
                          ]
 
+-- | Helper to print a Show instance with a prefix
 bPrint :: (MonadIO m, Show a) => a -> m ()
 bPrint = liftIO . putStrLn . ("backend> " ++) . show
 
+-- | Helper to print a Text with a prefix
 bPrintT :: (MonadIO m) => Text -> m ()
 bPrintT = liftIO . T.putStrLn . (T.append "backend> ")
 
+-- | Prepare a new Scenario for a given ParameterSet. Default implementation.
+-- Creates an UUID and takes a timestamp.
+-- Try resolving dependencies.
+-- If successful, creates a directory to hold the result and provision a logger.
 prepareNewScenario :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
 prepareNewScenario  sc params = do
     bPrint $ T.append "preparing " (sName sc)
@@ -146,7 +154,7 @@ prepareNewScenario  sc params = do
                 now <- getCurrentTime
                 id <- randomIO :: IO UUID
                 return (now,id)
-    let rundir = intercalate "/" [T.unpack (sName sc), show uuid]
+    let rundir = intercalate "/" ["results", T.unpack (sName sc), show uuid]
     let newExec = Exec sc params rundir Running [] (now,now)
     bPrint "resolving dependencies"
     exec <- resolveDependencies newExec
@@ -161,12 +169,29 @@ prepareNewScenario  sc params = do
         return [h1,h2]
     return (exec, \_ -> liftIO $ forM_ handles close)
 
+-- | Resolve dependencies for an Execution or fail using error (unsafely) if it
+-- didn't succeed.
 resolveDependencies :: Execution EnvIO -> EnvIO (Execution EnvIO)
 resolveDependencies exec = do
     pending <- getPendingDeps exec deps 
     resolveDependencies' exec [] pending
     where deps = sDeps $ eScenario exec
 
+-- | Actual implementation for the dependency resolution.
+--
+-- Iteratively tries dependencies.
+-- If there is no dependency left, suceed.
+-- Else tries the first unmet dependency pending.
+-- If the dependency failed, with no other unmet dependeny, error the program.
+-- If the dependency succeed, restart with all still unmet dependencies.
+-- If the dependency failed with other unmet dependency, reiterate until one succeeds or the program goes on error.
+-- 
+-- A reason why we error the program is that at the time of the check, there
+-- should be no running experiments and we can easily notify the user.
+-- As there often are correlation between a batch of experiments, one unmet
+-- depedency is likely to impede other executions as well. Hence current choice
+-- to crash early.
+-- 
 resolveDependencies' :: Execution EnvIO -> [Dependency EnvIO] -> [Dependency EnvIO] -> EnvIO (Execution EnvIO)
 resolveDependencies' exec [] []                = return exec
 resolveDependencies' exec failed []            = error "cannot solve dependencies"
@@ -191,12 +216,14 @@ getPendingDeps exec deps = keepFailedChecks <$> mapM checkDep deps
             bPrintT $ T.append "checking " (dName dep)
             dCheck dep exec 
 
+-- | Load existing executions for a query and and a list of scenarios descriptions.
 loadExisting :: [ScenarioDescription EnvIO] -> TExpr Bool -> EnvIO [Execution EnvIO]
 loadExisting scs qexpr = do
     concat <$> mapM f scs
     where f :: ScenarioDescription EnvIO -> EnvIO [Execution EnvIO]
           f sc = do
-            paths <- map ((name ++ "/") ++) . filter notDot <$> liftIO (getDirectoryContents' name)
+            paths <- map (("results/" ++ name ++ "/") ++) . filter notDot <$> liftIO (getDirectoryContents' $ "results/"+ aux
+name)
             allExecs <- mapM (loadOne sc scs) paths
             return $ filter (matchTExpr qexpr) allExecs
             where notDot dirname = take 1 dirname /= "."
@@ -205,6 +232,10 @@ loadExisting scs qexpr = do
                   getDirectoryContents' dir = catchIOError (getDirectoryContents dir)
                                                            (\e -> if isDoesNotExistError e then return [] else ioError e)
 
+-- | Load one execution at a given path for a given scenario.
+-- 
+-- If could not decode the execution, error the program, this should happen
+-- only when file got corrupted/software changed too much.
 loadOne :: ScenarioDescription EnvIO -> [ScenarioDescription EnvIO] -> FilePath -> EnvIO (Execution EnvIO)
 loadOne sc scs path = do
   stored <- decode <$> liftIO (BSL.readFile (path ++ "/execution.json"))

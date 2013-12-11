@@ -114,6 +114,12 @@ open-source: use it, fork it, or clone it.
 
 For version 0.1.4.x
 
-* [improvement] Use './results' as root dir in defaultBackend
 * [improvement] Use system locale rather than default locale for time parsing
+* [improvement] DSL helper to read/filter ancestors and their params
+
+For version 0.1.5.x
+
 * [feature] exports to propose exported files using "show-exports" command
+* [feature] labor-script binary for easy-integration of other scripts
+  - will need to expand parameter spaces by extending undeclared parameters
+* [code] cleanup/share/unshare parts of implementation/laborantin/cli script
