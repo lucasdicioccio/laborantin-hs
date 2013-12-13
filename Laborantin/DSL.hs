@@ -18,6 +18,8 @@ module Laborantin.DSL (
     ,   setup
     ,   teardown
     ,   run
+    ,   self
+    ,   backend
     ,   param
     ,   ancestors
     ,   ancestorsMatching
@@ -177,6 +179,14 @@ require :: (MonadIO m, Monad m) => ScenarioDescription m -> Text -> State (Scena
 require sc txt = requireTExpr sc query
     where query = either (const deflt) (toTExpr deflt) (parseUExpr (unpack txt))
           deflt = (B True)
+
+-- | Returns current execution
+self :: Monad m => Step m (Execution m)
+self = liftM snd ask
+
+-- | Returns current backend
+backend :: Monad m => Step m (Backend m)
+backend = liftM fst ask
 
 -- | Returns a 'Result' object for the given name.
 --
