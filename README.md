@@ -115,7 +115,6 @@ open-source: use it, fork it, or clone it.
 For version 0.1.4.x
 
 * [improvement] Use system locale rather than default locale for time parsing
-* [improvement] DSL helper to read/filter ancestors and their params
 
 For version 0.1.5.x
 

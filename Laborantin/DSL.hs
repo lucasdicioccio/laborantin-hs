@@ -19,6 +19,9 @@ module Laborantin.DSL (
     ,   teardown
     ,   run
     ,   param
+    ,   ancestors
+    ,   ancestorsMatching
+    ,   ancestorsMatchingTExpr
     ,   getVar
     ,   setVar
     ,   recover
@@ -242,3 +245,18 @@ getVar :: (Typeable v, Functor m, MonadState DynEnv m) =>
          -> m (Maybe v)      
 getVar k = maybe Nothing fromDynamic <$> getVar' k
 
+-- | Get all ancestors for a given scenario name and matching a TExpr Bool query.
+ancestorsMatchingTExpr :: (Monad m) => Text -> TExpr Bool -> Step m [Execution m]
+ancestorsMatchingTExpr name query = liftM (matching . eAncestors . snd) ask
+    where matching = filter (matchTExpr query)
+
+-- | Get all ancestors for a given scenario name and matching a query expressed as a string.
+-- Current implementation silences errors.
+ancestorsMatching :: (Monad m) => Text -> Text -> Step m [Execution m]
+ancestorsMatching name txt = ancestorsMatchingTExpr name query
+    where query = either (const deflt) (toTExpr deflt) (parseUExpr (unpack txt))
+          deflt = (B False)
+
+-- | Get all ancestors for a given scenario name.
+ancestors :: (Monad m) => Text -> Step m [Execution m]
+ancestors = flip ancestorsMatchingTExpr (B True)
