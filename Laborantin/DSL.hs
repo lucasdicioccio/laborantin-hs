@@ -59,9 +59,15 @@ instance Describable (Dependency a) where
   changeDescription d dep = dep { dDesc = d }
 
 -- | DSL entry point to build a 'ScenarioDescription'.
-scenario :: Text -> State (ScenarioDescription m) () -> ScenarioDescription m
+scenario :: (Monad m) => Text -> State (ScenarioDescription m) () -> ScenarioDescription m
 scenario name f = execState f sc0
-  where sc0 = SDesc name "" M.empty M.empty Nothing [] (B False)
+  where sc0 = emptyScenario { sName = name, sHooks = defaultNoHooks }  
+                where defaultNoHooks = M.fromList [ ("setup", noop)
+                                                  , ("teardown", noop)
+                                                  , ("run", noop)
+                                                  , ("analyze", noop)
+                                                  ]
+                      noop = Action (return ())
 
 -- | Attach a description to the 'Parameter' / 'Scnario'
 describe :: Describable a => Text -> State a ()
