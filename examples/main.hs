@@ -18,11 +18,6 @@ pong = scenario "pong" $ do
     parameter "foo" $ do
         describe "foo"
         values [str "foo"]
-    setup (return ())
-    run (return ())
-    teardown (return ())
-    recover (const (return ()))
-    analyze (return ())
 
 ping :: ScenarioDescription EnvIO
 ping = scenario "ping" $ do
