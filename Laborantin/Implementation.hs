@@ -222,8 +222,7 @@ loadExisting scs qexpr = do
     concat <$> mapM f scs
     where f :: ScenarioDescription EnvIO -> EnvIO [Execution EnvIO]
           f sc = do
-            paths <- map (("results/" ++ name ++ "/") ++) . filter notDot <$> liftIO (getDirectoryContents' $ "results/"+ aux
-name)
+            paths <- map (("results/" ++ name ++ "/") ++) . filter notDot <$> liftIO (getDirectoryContents' $ "results/" ++ name)
             allExecs <- mapM (loadOne sc scs) paths
             return $ filter (matchTExpr qexpr) allExecs
             where notDot dirname = take 1 dirname /= "."
