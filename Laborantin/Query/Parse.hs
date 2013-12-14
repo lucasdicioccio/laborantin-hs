@@ -1,6 +1,11 @@
 {-# LANGUAGE TupleSections #-}
 
-module Laborantin.Query.Parse (expr, parseUExpr) where
+module Laborantin.Query.Parse (
+      expr
+    , ParsePrefs (..)
+    , defaultParsePrefs
+    , parseUExpr
+    ) where
 
 import Laborantin.Types (UExpr (..))
 import Laborantin.Query
@@ -14,18 +19,25 @@ import System.Locale
 import Data.Time
 import Data.Time.Format
 
-parseUExpr :: String -> Either ParseError UExpr
-parseUExpr = parse expr ""
+data ParsePrefs = ParsePrefs {
+        prefTimeLocale :: TimeLocale
+    } deriving  (Show)
 
-expr :: Parsec String u UExpr
+defaultParsePrefs :: ParsePrefs
+defaultParsePrefs = ParsePrefs defaultTimeLocale
+
+parseUExpr :: ParsePrefs -> String -> Either ParseError UExpr
+parseUExpr prefs str = runP expr prefs "-" str
+
+expr :: Parsec String ParsePrefs UExpr
 expr = foldl chainl1 term [try inclOp, try mulOp, try addOp, try compOp, try boolOp]
     where term = expr' <|> negated <|> ary <|> literal <|> special
                  where expr' = char '(' *> expr <* char ')'
 
-negated :: Parsec String u UExpr
+negated :: Parsec String ParsePrefs UExpr
 negated = UNot <$> (spaces *> char '!' *> spaces *> expr)
 
-ary :: Parsec String u UExpr
+ary :: Parsec String ParsePrefs UExpr
 ary = UL <$> (char '[' *> (expr `sepBy` (spaces >> char ',' >> spaces)) <* char ']')
       
 binOp xs = do
@@ -40,14 +52,15 @@ boolOp = binOp [("and",UAnd),("or",UOr)]
 compOp = binOp [(">=",UGte),(">",UGt),("==",UEq),("<=",ULte),("<",ULt)]
 inclOp = binOp [("in",UContains), ("~>",UContains)]
 
-literal :: Parsec String u UExpr
+literal :: Parsec String ParsePrefs UExpr
 literal = try bool <|> date <|> (UN <$> number) <|> (US . T.pack <$> quotedString)
 
-date :: Parsec String u UExpr
+date :: Parsec String ParsePrefs UExpr
 date = do
     string "t:"
     str <- quotedString
-    let parsed = parseTimeFormats' defaultTimeLocale fmts str
+    timeLocale <- prefTimeLocale <$> getState
+    let parsed = parseTimeFormats' timeLocale fmts str
     case parsed of
         [x] -> return $ UT x
         _   -> fail "invalid time format"

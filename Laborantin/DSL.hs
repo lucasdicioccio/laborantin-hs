@@ -177,7 +177,7 @@ requireTExpr sc query = do
 -- | Defines the TExpr Bool to load ancestor
 require :: (MonadIO m, Monad m) => ScenarioDescription m -> Text -> State (ScenarioDescription m) ()
 require sc txt = requireTExpr sc query
-    where query = either (const deflt) (toTExpr deflt) (parseUExpr (unpack txt))
+    where query = either (const deflt) (toTExpr deflt) (parseUExpr defaultParsePrefs (unpack txt))
           deflt = (B True)
 
 -- | Returns current execution
@@ -264,7 +264,7 @@ ancestorsMatchingTExpr name query = liftM (matching . eAncestors . snd) ask
 -- Current implementation silences errors.
 ancestorsMatching :: (Monad m) => Text -> Text -> Step m [Execution m]
 ancestorsMatching name txt = ancestorsMatchingTExpr name query
-    where query = either (const deflt) (toTExpr deflt) (parseUExpr (unpack txt))
+    where query = either (const deflt) (toTExpr deflt) (parseUExpr defaultParsePrefs (unpack txt))
           deflt = (B False)
 
 -- | Get all ancestors for a given scenario name.

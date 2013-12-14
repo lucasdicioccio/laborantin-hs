@@ -26,6 +26,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Time (UTCTime(..), getCurrentTime)
+import System.Locale
 
 defaultMain xs = getArgs >>= dispatchR [] >>= runLabor xs
 
@@ -200,7 +201,8 @@ runLabor xs labor = do
                                               print expr
 
         where xs'           = filterDescriptions (ScenarioName $ map T.pack $ scenarii labor) xs
-              matcherUExprs = rights $ map parseUExpr (matcher labor)
+              prefs         = ParsePref defaultTimeLocale
+              matcherUExprs = rights $ map (parseUExpr prefs) (matcher labor)
               matcherTExprs = map (toTExpr (B True)) matcherUExprs
               paramsTExpr   = paramsToTExpr $ map T.pack $ params labor
               scenarioTExpr = scenarsToTExpr $ map T.pack $ scenarii labor
