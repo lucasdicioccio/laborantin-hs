@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                laborantin-hs
-version:             0.1.3.0
+version:             0.1.4.0
 synopsis:            an experiment management framework
 description:         
     Laborantin is a framework and DSL to run and manage results from scientific

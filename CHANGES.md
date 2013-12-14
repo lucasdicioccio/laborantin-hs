@@ -1,6 +1,12 @@
 Changelog
 =========
 
+# 0.1.4.0 (2013-12-14)
+* no longer need to explicitly implement all hooks, they default to `return ()`
+* add ancestors helper to load and filter existing ancestors in experiment Step
+* add UExpr parsing preferences (e.g., for time locale)
+    - not used in practice for now in CLI/DSL
+
 # 0.1.3.0 (2013-12-8)
 * add TExpr Bool parameter expansions
 * add ancestors querying and loading
