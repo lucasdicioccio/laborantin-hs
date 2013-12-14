@@ -201,7 +201,7 @@ runLabor xs labor = do
                                               print expr
 
         where xs'           = filterDescriptions (ScenarioName $ map T.pack $ scenarii labor) xs
-              prefs         = ParsePref defaultTimeLocale
+              prefs         = ParsePrefs defaultTimeLocale
               matcherUExprs = rights $ map (parseUExpr prefs) (matcher labor)
               matcherTExprs = map (toTExpr (B True)) matcherUExprs
               paramsTExpr   = paramsToTExpr $ map T.pack $ params labor
