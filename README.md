@@ -1,10 +1,136 @@
 laborantin-hs
 =============
 
-Initially, Laborantin is a Ruby framework for controlling and managing
-experiments. Laborantin-Hs is the Haskell port of Laborantin.
+Laborantin is a Haskell framework for running controlled experiments.
+It is already quite stable and only few things should change in the near
+future. Comments and pull requests are warmly welcome.
 
-# Introduction
+# Install
+
+The easiest way to install Laborantin is to use the package published on
+hackage.
+
+```sh
+  cabal update
+  cabal install laborantin-hs
+```
+
+Alternatively you can clone this repository with git to get the latest
+development version.
+
+```sh
+  git clone https://github.com/lucasdicioccio/laborantin-hs	
+  cd laborantin-hs
+  cabal update
+  cabal sandbox init # only if you want a sandboxed install
+  cabal install # you can also use cabal configure && cabal build to just build the repo
+```
+
+# Two-minutes tutorial
+
+When using Laborantin the typical workflow is as follows:
+
+i) write one or multiple scenarios using the DSL <my-experiment.hs>
+ii) compile your application with gch --make -O2 <my-experiment.hs>
+iii) run experiments with `./my-experiment run -m "@sc.param 'some-param' in [42, 'toto'] and @sc.param 'other-param' == 1234"`
+
+Example, annotated, code is as follows. Inline comments start with "--". Please
+note that the actual implementation of the `executePingCommand` is left as an
+exercise.
+
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+
+module Main where
+-- import the world
+import Data.Text (Text)
+import Control.Monad.IO.Class (liftIO)
+import Laborantin.DSL
+import Laborantin.Types
+import Laborantin.CLI
+import Laborantin.Implementation
+
+-- declare one scenario
+ping :: ScenarioDescription EnvIO
+ping = scenario "ping" $ do -- start defining a scenario called "ping"
+  -- enters the description for this scenario
+  describe "ping to a remote server"
+  -- declares a first parameter, called "destination".
+  -- this parameter has some description for documentation purposes
+  -- we should explore two values (strings) by default for this parameter
+  parameter "destination" $ do
+    describe "a destination server (host or ip)"
+    values [str "example.com", str "probecraft.net"]
+  -- declares a second parameter, called "packet-size".
+  -- we should also explore two values (rational numbers) by default for this
+  -- parameter
+  parameter "packet-size" $ do
+    describe "packet size in bytes"
+    values [num 50, num 1500] 
+
+  -- now implement the "run hook", which is the actual code to run
+  run $ do
+    (StringParam srv) <- param "destination" -- lookup "destination" parameter, it should be a string
+    (NumberParam ps) <- param "packet-size" -- lookup "packet-size" parameter, it should be a rational number
+    liftIO (executePingCommand srv ps) >>= writeResult "raw-result" -- executes the ping action defined below, and dumps the result into a file called "raw-result"
+    where executePingCommand :: Text -> Rational -> IO (Text)
+          executePingCommand host packetSize = ...
+
+-- list your scenarios in the defaultMain to get a command-line app
+main :: IO ()
+main = defaultMain [ping]
+```
+
+At first, it looks like Laborantin requires a lot of boilerplate if your
+experiment is a one-liner. Nothing is free and this is the small cost you have
+to pay.  However you get a handy command-line tool for this cost.
+
+For instance, you get some documentation command: `./my-experiment describe` will output:
+
+```
+# Scenario: ping
+    ping to a remote server
+    4 parameter combinations by default
+## Parameters:
+### destination
+(destination)
+    a destination server (host or ip)
+    2 values:
+    - StringParam "example.com"
+    - StringParam "probecraft.net"
+
+### packet-size
+(packet-size)
+    packet size in bytes
+    2 values:
+    - NumberParam (50 % 1)
+    - NumberParam (1500 % 1)
+```
+
+You can run experiments with: `./my-experiment run` (stripped output).
+
+```
+backend> execution finished
+
+backend> "preparing ping"
+backend> "resolving dependencies"
+backend> scenario: "ping"
+         rundir: results/ping/81e44c78-4fd8-4ab9-8f97-5494dac646a2
+         json-params: {"packet-size":{"val":1500.0,"type":"num"},"destination":{"val":"probecraft.net","type":"string"}}
+
+backend> execution finished
+```
+
+Then find where experiments results are located with: `./my-experiment find`.
+
+```
+results/ping/2ead949a-ed36-4523-9a9c-7c7e2c22a1b2 ping (Success) {"packet-size":{"val":1500.0,"type":"num"},"destination":{"val":"example.com","type":"string"}}
+results/ping/81e44c78-4fd8-4ab9-8f97-5494dac646a2 ping (Success) {"packet-size":{"val":1500.0,"type":"num"},"destination":{"val":"probecraft.net","type":"string"}}
+results/ping/866b63e8-d407-442c-bc33-f1fb4e96c2a8 ping (Success) {"packet-size":{"val":50.0,"type":"num"},"destination":{"val":"example.com","type":"string"}}
+results/ping/a34826bc-5160-4e12-95cc-12fb5c02fc7b ping (Success) {"packet-size":{"val":50.0,"type":"num"},"destination":{"val":"probecraft.net","type":"string"}}
+```
+
+# Discussion
 
 Designing scientific experiments is hard. Scientific experiments often must
 test an hypothesis such as *does parameter X* influences the outcome of *process A* ?
@@ -115,7 +241,7 @@ open-source: use it, fork it, or clone it.
 For version 0.1.5.x
 
 * [improvement] Use system locale rather than default locale for time parsing
-    - actually might not be such a good idea, let everyone input %d/%d/%y
+    - actually might not be such a good idea, let everyone input %m/%d/%y
 * [feature] exports to propose exported files using "show-exports" command
 * [feature] labor-script binary for easy-integration of other scripts
   - will need to expand parameter spaces by extending undeclared parameters
