@@ -1,0 +1,45 @@
+[ANN] Laborantin experimentation framework
+
+Dear all,
+
+I am happy to announce Laborantin. Laborantin is a Haskell library and DSL for
+running and analyzing controlled experiments.
+
+Repository: https://github.com/lucasdicioccio/laborantin-hs
+Hackage page: http://hackage.haskell.org/package/laborantin-hs
+
+Laborantin's opinion is that running proper experiments is a non-trivial and
+often overlooked problem. Therefore, we should provide good tools to assist
+experimenters. The hope is that, with Laborantin, experimenters will spend more
+time on their core problem while racing through the menial tasks of editing a
+script because one data point is missing in a plot. At the same time,
+Laborantin is also an effort within the broad open-science movement. Indeed,
+Laborantin's DSL separates boilerplate from the actual experiment
+implementation. Thus, Laborantin could reduce the friction for code and
+data-reuse.
+
+One family of experiments that fit well Laborantin are benchmarks with tedious
+setup and teardown procedures (for instance starting, configuring, and stopping
+remote machines). Analyses that require measurements from a variety of data
+points in a multi-dimensional parameter space also fall in the scope of
+Laborantin.
+
+When using Laborantin, the experimenter:
+
+* Can express experimental scenarios using a readable and familiar DSL.
+  This feature, albeit subjective, was confirmed by non-Haskeller colleagues.
+* Saves time on boilerplate such as writing command-line parsers or 
+  encoding dependencies between experiments and analysis results in a Makefile.
+* Benefits from auto-documentation and result introspection features when she
+  comes back to a project, possibly months or weeks later. 
+* Harnesses the power of Haskell type-system to catch common errors at compile time
+
+If you had to read one story to understand the pain points that Laborantin
+tries to address, it should be Section 5 of "Strategies for Sound Internet
+Measurement" (V. Paxson, IMC 2004).
+
+I'd be glad to take question and comments (or, even better, code reviews and
+pull requests).
+
+Kind regards,
+--Lucas DiCioccio
