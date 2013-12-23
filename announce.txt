@@ -11,8 +11,8 @@ Hackage page: http://hackage.haskell.org/package/laborantin-hs
 Laborantin's opinion is that running proper experiments is a non-trivial and
 often overlooked problem. Therefore, we should provide good tools to assist
 experimenters. The hope is that, with Laborantin, experimenters will spend more
-time on their core problem while racing through the menial tasks of editing a
-script because one data point is missing in a plot. At the same time,
+time on their core problem while racing through the menial tasks of editing
+scripts because one data point is missing in a plot. At the same time,
 Laborantin is also an effort within the broad open-science movement. Indeed,
 Laborantin's DSL separates boilerplate from the actual experiment
 implementation. Thus, Laborantin could reduce the friction for code and
@@ -30,7 +30,7 @@ When using Laborantin, the experimenter:
   This feature, albeit subjective, was confirmed by non-Haskeller colleagues.
 * Saves time on boilerplate such as writing command-line parsers or 
   encoding dependencies between experiments and analysis results in a Makefile.
-* Benefits from auto-documentation and result introspection features when she
+* Benefits from auto-documentation and result introspection features when one
   comes back to a project, possibly months or weeks later. 
 * Harnesses the power of Haskell type-system to catch common errors at compile time
 
