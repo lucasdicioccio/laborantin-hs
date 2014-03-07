@@ -30,9 +30,17 @@ development version.
 
 When using Laborantin the typical workflow is as follows:
 
-i) write one or multiple scenarios using the DSL <my-experiment.hs>
-ii) compile your application with gch --make -O2 <my-experiment.hs>
-iii) run experiments with `./my-experiment run -m "@sc.param 'some-param' in [42, 'toto'] and @sc.param 'other-param' == 1234"`
+1. Write one or multiple scenarios using the DSL, e.g. ```my-experiment.hs```.
+2. Compile the application with ```ghc --make -O2 my-experiment.hs```. If you built Laboratin using a sandbox, you need to specify the local package database, e.g.
+
+        ghc -no-user-package-db \
+            -package-db /path/to/laboratin/.cabal-sandbox/x86_64-linux-ghc-7.6.3-packages.conf.d \
+            --make -O2 my-experiment.hs
+
+3. Run experiments with
+
+        ./my-experiment run -m "@sc.param 'some-param' in [42, 'toto'] and @sc.param 'other-param' == 1234"
+
 
 Example, annotated, code is as follows. Inline comments start with "--". Please
 note that the actual implementation of the `executePingCommand` is left as an
