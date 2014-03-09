@@ -11,15 +11,15 @@ description:
     .
     Writing experiments with Laborantin has at least two advantages over
     rolling your own scripts.  First, Laborantin standardizes the workflow of your
-    experimentations.  There is one-way to describe what a project can do, what
-    experiments where already run, how to delete files corresponding to a specific
-    experiment etc.  Second, Laborantin builds on years of experience running
-    experiments. Using Laborantin    should alleviates common pain points such as
-    querying for experiments, managing dependencies between results
+    experimentations.  There is one way to describe what a project can do, what
+    experiments were already run, how to delete files corresponding to a specific
+    experiment, etc.  Second, Laborantin builds on years of experience running
+    experiments. Using Laborantin    should alleviate common pain points such as
+    querying for experiments, managing dependencies between results, etc.
     .
     Laborantin's DSL lets you express experiment parameters,
     setup, teardown, and recovery hooks in a systematic way.
-    In addition, this DSL let you express dependencies on your
+    In addition, the DSL lets you express dependencies on your
     experiments so that you can run prior experiments or data analyses.
     .
     Laborantin comes with a default backend that stores
