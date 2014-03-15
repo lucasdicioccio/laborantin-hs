@@ -246,10 +246,10 @@ open-source: use it, fork it, or clone it.
 
 # Roadmap
 
-For version 0.1.5.x
+For version 0.1.6.x
 
-* [improvement] Use system locale rather than default locale for time parsing
-    - actually might not be such a good idea, let everyone input %m/%d/%y
+* [improvements] changes 'require' to support parametrization
+  - needs to pass extra arguments
 * [feature] exports to propose exported files using "show-exports" command
 * [feature] labor-script binary for easy-integration of other scripts
   - will need to expand parameter spaces by extending undeclared parameters

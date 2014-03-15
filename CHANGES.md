@@ -1,6 +1,12 @@
 Changelog
 =========
 
+# 0.1.5.0 (2014-03-14)
+* bump 'base' dependency to support GHC 7.8
+* add -c <int> to support concurrent runs
+    - race conditions may happen (e.g., a dependency rans twice), recommended
+      use: pure statistics on already ran experiments
+
 # 0.1.4.0 (2013-12-14)
 * no longer need to explicitly implement all hooks, they default to `return ()`
 * add ancestors helper to load and filter existing ancestors in experiment Step
