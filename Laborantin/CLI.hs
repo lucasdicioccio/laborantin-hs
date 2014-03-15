@@ -7,6 +7,8 @@ module Laborantin.CLI (defaultMain) where
 import Control.Monad
 import Control.Applicative
 import Control.Monad.IO.Class
+import Control.Concurrent
+import Control.Concurrent.Async
 import Laborantin
 import Laborantin.Types
 import Laborantin.Implementation
@@ -67,6 +69,7 @@ describeExecution e = T.pack $ intercalate " " [ ePath e
 data Labor = Run        { scenarii   :: [String]
                         , params :: [String]
                         , matcher :: [String]
+                        , concurrency :: Int
                         }
            | Continue   { scenarii   :: [String]
                         , params :: [String]
@@ -129,6 +132,12 @@ instance Attributes Labor where
                                     , Help "Restrict to a matching expression"
                                     , ArgHelp "MATCHER EXPRESSION"
                                     ]
+                    ,   concurrency  %> [ Short "c"
+                                    , Long ["concurrency"]
+                                    , Help "Number of experiments to run at a same time"
+                                    , ArgHelp "CONCURRENT RUNS"
+                                    , Default (1::Int)
+                                    ]
                     ]
 
 instance RecordCommand Labor where
@@ -182,6 +191,15 @@ filterDescriptions :: DescriptionTExpr -> [ScenarioDescription m] -> [ScenarioDe
 filterDescriptions (ScenarioName []) xs = xs
 filterDescriptions (ScenarioName ns) xs = filter ((flip elem ns) . sName) xs
 
+concurrentmapM_ :: Int -> (a -> IO b) -> [a] -> IO ()
+concurrentmapM_ n f xs = do
+    goChan <- newChan :: IO (Chan ())
+    joinChan <- newChan :: IO (Chan ())
+    let f' a = readChan goChan >> f a >> writeChan goChan () >> writeChan joinChan ()
+    mapM_ (async . f') xs
+    replicateM_ n (writeChan goChan ()) 
+    mapM_ (\_ -> readChan joinChan) xs
+
 
 runLabor :: [ScenarioDescription EnvIO] -> Labor -> IO ()
 runLabor xs labor = do
@@ -191,7 +209,7 @@ runLabor xs labor = do
         Find {}                         -> do execs <- runEnvIO (loadMatching now)
                                               mapM_ (T.putStrLn . describeExecution) execs
         Rm {}                           -> runSc (loadAndRemove now)
-        Run {}                          -> mapM_ runSc (targetExecs [])
+        Run {}                          -> do concurrentmapM_ (concurrency labor) runSc (targetExecs [])
         Continue {}                     -> do execs <- runEnvIO (loadMatching now)
                                               mapM_ runSc (targetExecs execs)
         Analyze {}                      -> runSc (loadAndAnalyze now)
