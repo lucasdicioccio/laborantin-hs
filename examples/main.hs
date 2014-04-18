@@ -37,15 +37,16 @@ ping = scenario "ping" $ do
       dbg "setting up scenario"
   run $ do
     ancestors "pong" >>= liftIO . print . (\n ->  show n ++ " ancestor(s)") . length
-    (Just str :: Maybe String) <- getVar "hello"
-    liftIO . print . ("hello "++) $ str
+    (Just who :: Maybe String) <- getVar "hello"
+    liftIO . print . ("hello "++) $ who
     (StringParam srv) <- param "destination"
     case srv of
         "failure.example" -> err "noooo"
-        str               -> dbg $ T.append "mimic sending ping to " str
+        host              -> dbg $ T.append "mimic sending ping to " host
     writeResult "raw-result" "a sort of result stored as a separate file"
   teardown $ dbg "here we could run some teardown action"
-  recover $ \err -> dbg $ T.append "here we could recover from error: " (T.pack $ show err)
-  analyze $ liftIO . print $ "analyze action"
+  recover $ \e -> dbg $ T.append "here we could recover from error: " (T.pack $ show e)
+  analyze $ liftIO . print $ ("analyze action" :: String)
 
+main :: IO ()
 main = defaultMain [ping, pong]
