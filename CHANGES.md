@@ -1,7 +1,10 @@
 Changelog
 =========
 
-# 0.1.5.1 (2014-04-18)
+# 0.1.5.2 (2014-04-18)
+* fix executable warnings
+
+# 0.1.5.1 (2014-04-18) (unreleased)
 * widen 'text' dependency to <1.2
 * widen 'aeson' dependency to <0.8
 
