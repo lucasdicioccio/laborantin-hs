@@ -1,6 +1,10 @@
 Changelog
 =========
 
+# 0.1.5.1 (2014-04-18)
+* widen 'text' dependency to <1.2
+* widen 'aeson' dependency to <0.8
+
 # 0.1.5.0 (2014-03-14)
 * bump 'base' dependency to support GHC 7.8
 * add -c <int> to support concurrent runs
