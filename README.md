@@ -5,6 +5,14 @@ Laborantin is a Haskell framework for running controlled experiments.
 It is already quite stable and only few things should change in the near
 future. Comments and pull requests are warmly welcome.
 
+# Features
+
+* Write your experiments in Haskell and benefit from compile-time bug squashing, plenty of libraries.
+* Embedded specific language to express experiments in a no-brainer, systematic way.
+* Compile to binary with:
+  - commands to support experimental to lifecycle (run/analyze/find/delete experiments)
+  - free support for bash completion
+
 # Install
 
 The easiest way to install Laborantin is to use the package published on

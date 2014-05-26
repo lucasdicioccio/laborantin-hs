@@ -99,11 +99,12 @@ data Command = RunCommand Run
   | QueryCommand Query
   deriving (Show)
 
-scenariosOpt = many $ strOption (
+scenariosOpt scii = many $ strOption (
      long "scenario"
   <> short 's'
   <> metavar "SCENARIOS"
-  <> help "Names of the scenarios to run.")
+  <> help "Names of the scenarios to run."
+  <> completeWith scii)
 
 paramsOpt = many $ strOption (
      long "param"
@@ -131,97 +132,97 @@ todayFlag = switch (
      long "today"
   <> help "Only account for today's runs.")
 
-run :: Parser Run
-run = Run <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> concurrencyLeveLOpt
+run :: [String] -> Parser Run
+run scii = Run <$> scenariosOpt scii <*> paramsOpt <*> matchersOpt <*> concurrencyLeveLOpt
 
-continue :: Parser Continue
-continue = Continue <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag <*> concurrencyLeveLOpt
+continue :: [String] -> Parser Continue
+continue scii = Continue <$> scenariosOpt scii <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag <*> concurrencyLeveLOpt
 
-describe :: Parser Describe
-describe = Describe <$> scenariosOpt
+describe :: [String] -> Parser Describe
+describe scii = Describe <$> scenariosOpt scii
 
-find :: Parser Find
-find = Find <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag
+find :: [String] -> Parser Find
+find scii = Find <$> scenariosOpt scii <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag
 
-analyze :: Parser Analyze
-analyze = Analyze <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag <*> concurrencyLeveLOpt
+analyze :: [String] -> Parser Analyze
+analyze scii = Analyze <$> scenariosOpt scii <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag <*> concurrencyLeveLOpt
 
-rm :: Parser Rm
-rm = Rm <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag
+rm :: [String] -> Parser Rm
+rm scii = Rm <$> scenariosOpt scii <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag
 
-query :: Parser Query
-query = Query <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag
+query :: [String] -> Parser Query
+query scii = Query <$> scenariosOpt scii <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag
 
-params :: Parser Params
-params = Params <$> scenariosOpt <*> paramsOpt <*> matchersOpt
+params :: [String] -> Parser Params
+params scii = Params <$> scenariosOpt scii <*> paramsOpt <*> matchersOpt
 
-runOpts :: ParserInfo Run
-runOpts = info (helper <*> run)
+runOpts :: [String] -> ParserInfo Run
+runOpts scii = info (helper <*> run scii)
           ( fullDesc
          <> progDesc "Executes experiment scenarios."
          <> header "runs a scenario")
 
-continueOpts :: ParserInfo Continue
-continueOpts = info (helper <*> continue)
+continueOpts :: [String] -> ParserInfo Continue
+continueOpts scii = info (helper <*> continue scii)
           ( fullDesc
          <> progDesc "Executes missing scenarios."
          <> header "continues scenarios")
 
-describeOpts :: ParserInfo Describe
-describeOpts = info (helper <*> describe)
+describeOpts :: [String] -> ParserInfo Describe
+describeOpts scii = info (helper <*> describe scii)
           ( fullDesc
          <> progDesc "Describe scenarios in this project."
          <> header "describes scenarios")
 
-findOpts :: ParserInfo Find
-findOpts = info (helper <*> find)
+findOpts :: [String] -> ParserInfo Find
+findOpts scii = info (helper <*> find scii)
           ( fullDesc
          <> progDesc "Find scenarios executions."
          <> header "finds scenarios")
 
-analyzeOpts :: ParserInfo Analyze
-analyzeOpts = info (helper <*> analyze)
+analyzeOpts :: [String] -> ParserInfo Analyze
+analyzeOpts scii = info (helper <*> analyze scii)
           ( fullDesc
          <> progDesc "Analyze scenarios runs by replaying the 'analyze' hook."
          <> header "analyzes scenarios")
 
-rmOpts :: ParserInfo Rm
-rmOpts = info (helper <*> rm)
+rmOpts :: [String] -> ParserInfo Rm
+rmOpts scii = info (helper <*> rm scii)
           ( fullDesc
          <> progDesc "Deletes scenario runs, use carefully."
          <> header "removes scenarios")
 
-queryOpts :: ParserInfo Query
-queryOpts = info (helper <*> query)
+queryOpts :: [String] -> ParserInfo Query
+queryOpts scii = info (helper <*> query scii)
           ( fullDesc
          <> progDesc "Prints the query (for find-like commands) given other program args."
          <> header "removes scenarios")
 
-paramsOpts :: ParserInfo Params
-paramsOpts = info (helper <*> params)
+paramsOpts :: [String] -> ParserInfo Params
+paramsOpts scii = info (helper <*> params scii)
           ( fullDesc
          <> progDesc "Prints the params expansion (for run-like commands) given other program args."
          <> header "removes scenarios")
 
-cmd :: Parser Command
-cmd = subparser ( command "run" (RunCommand <$> runOpts)
-               <> command "continue" (ContinueCommand <$> continueOpts)
-               <> command "describe" (DescribeCommand <$> describeOpts)
-               <> command "find" (FindCommand <$> findOpts)
-               <> command "analyze" (AnalyzeCommand <$> analyzeOpts)
-               <> command "rm" (RmCommand <$> rmOpts)
-               <> command "params" (ParamsCommand <$> paramsOpts)
-               <> command "query" (QueryCommand <$> queryOpts))
+cmd :: [String] -> Parser Command
+cmd scii = subparser ( command "run" (RunCommand <$> runOpts scii)
+               <> command "continue" (ContinueCommand <$> continueOpts scii)
+               <> command "describe" (DescribeCommand <$> describeOpts scii)
+               <> command "find" (FindCommand <$> findOpts scii)
+               <> command "analyze" (AnalyzeCommand <$> analyzeOpts scii)
+               <> command "rm" (RmCommand <$> rmOpts scii)
+               <> command "params" (ParamsCommand <$> paramsOpts scii)
+               <> command "query" (QueryCommand <$> queryOpts scii))
 
-mainCmd :: ParserInfo Command
-mainCmd = info (helper <*> cmd)
+mainCmd :: [String] -> ParserInfo Command
+mainCmd scii = info (helper <*> cmd scii)
           ( fullDesc
          <> progDesc "Use subcommands to work with your Laborantin experiments."
          <> header "default Laborantin main script")
 
 defaultMain :: [ScenarioDescription EnvIO] -> IO ()
 defaultMain xs = do
-   command <- execParser mainCmd
+   command <- execParser $ mainCmd (map T.unpack $ map sName xs)
    case command of
     RunCommand y      -> runMain xs y
     ContinueCommand y -> continueMain xs y
