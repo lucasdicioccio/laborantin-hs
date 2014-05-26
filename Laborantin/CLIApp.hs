@@ -41,7 +41,7 @@ data Continue = Continue
   { continueScenarios   :: [String]
   , continueParams      :: [String]
   , continueMatchers    :: [String]
-  , continueSuccessful  :: Bool
+  , continueFailed  :: Bool
   , continueTodayOnly   :: Bool
   , continueConcurrency :: Int
   } deriving (Show)
@@ -54,7 +54,7 @@ data Find = Find
   { findScenarios   :: [String]
   , findParams      :: [String]
   , findMatchers    :: [String]
-  , findSuccessful  :: Bool
+  , findFailed      :: Bool
   , findTodayOnly   :: Bool
   } deriving (Show)
 
@@ -62,7 +62,7 @@ data Analyze = Analyze
   { analyzeScenarios    :: [String]
   , analyzeParams       :: [String]
   , analyzeMatchers     :: [String]
-  , analyzeSuccessful   :: Bool
+  , analyzeFailed       :: Bool
   , analyzeTodayOnly    :: Bool
   , analyzeConcurrency  :: Int
   } deriving (Show)
@@ -71,7 +71,7 @@ data Rm = Rm
   { rmScenarios   :: [String]
   , rmParams      :: [String]
   , rmMatchers    :: [String]
-  , rmSuccessful  :: Bool
+  , rmFailed      :: Bool
   , rmTodayOnly   :: Bool
   } deriving (Show)
 
@@ -85,7 +85,7 @@ data Query = Query
   { queryScenarios   :: [String]
   , queryParams      :: [String]
   , queryMatchers    :: [String]
-  , querySuccessful  :: Bool
+  , queryFailed      :: Bool
   , queryTodayOnly   :: Bool
   } deriving (Show)
 
@@ -123,9 +123,9 @@ concurrencyLeveLOpt = option (
   <> value 1
   <> help "Max concurrent runs.")
 
-successfulFlag = switch (
-     long "successful"
-  <> help "Only account for successful runs.")
+failedFlag = switch (
+     long "failed-only"
+  <> help "Only account for failed runs.")
 
 todayFlag = switch (
      long "today"
@@ -135,22 +135,22 @@ run :: Parser Run
 run = Run <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> concurrencyLeveLOpt
 
 continue :: Parser Continue
-continue = Continue <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> successfulFlag <*> todayFlag <*> concurrencyLeveLOpt
+continue = Continue <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag <*> concurrencyLeveLOpt
 
 describe :: Parser Describe
 describe = Describe <$> scenariosOpt
 
 find :: Parser Find
-find = Find <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> successfulFlag <*> todayFlag
+find = Find <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag
 
 analyze :: Parser Analyze
-analyze = Analyze <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> successfulFlag <*> todayFlag <*> concurrencyLeveLOpt
+analyze = Analyze <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag <*> concurrencyLeveLOpt
 
 rm :: Parser Rm
-rm = Rm <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> successfulFlag <*> todayFlag
+rm = Rm <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag
 
 query :: Parser Query
-query = Query <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> successfulFlag <*> todayFlag
+query = Query <$> scenariosOpt <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag
 
 params :: Parser Params
 params = Params <$> scenariosOpt <*> paramsOpt <*> matchersOpt
@@ -276,7 +276,7 @@ instance ToQueryExpr QueryExpr where
 newtype Params'     = Params' {unParams :: [String]}
 newtype Scenarios'  = Scenarios' {unScenarios :: [String]}
 newtype Matchers'   = Matchers' {unMatchers :: [String]}
-newtype Successful' = Successful' {unSuccessful :: Bool}
+newtype Failed'     = Failed' {unFailed :: Bool}
 newtype TodayOnly'  = TodayOnly' {unTodayOnly :: (Bool, UTCTime)}
 
 instance ToQueryExpr Params' where
@@ -318,11 +318,11 @@ instance ToQueryExpr Matchers' where
                 . map (parseUExpr prefs)
                 . unMatchers
 
-instance ToQueryExpr Successful' where
-  toQuery _ = statusToTExpr . unSuccessful
+instance ToQueryExpr Failed' where
+  toQuery _ = statusToTExpr . unFailed    
     where statusToTExpr :: Bool -> TExpr Bool
-          statusToTExpr True  =     (Eq ScStatus (S "success"))
-          statusToTExpr False = Not (Eq ScStatus (S "success"))
+          statusToTExpr True  = Not (Eq ScStatus (S "success"))
+          statusToTExpr False =     (Eq ScStatus (S "success"))
 
 instance ToQueryExpr TodayOnly' where
   toQuery _ = uncurry todayToTExpr . unTodayOnly
@@ -353,7 +353,7 @@ instance ToQueryExpr (Continue, UTCTime) where
     params'       = wrap $ Params'     $ continueParams args
     scenarios'    = wrap $ Scenarios'  $ continueScenarios args
     matchers'     = wrap $ Matchers'   $ continueMatchers args
-    status'       = wrap $ Successful' $ continueSuccessful args
+    status'       = wrap $ Failed'     $ continueFailed args
     date'         = wrap $ TodayOnly'  $ (continueTodayOnly args, tst)
     in toQuery prefs (params' <> scenarios' <> matchers' <> status' <> date')
 
@@ -364,7 +364,7 @@ instance ToQueryExpr (Find, UTCTime) where
     params'       = wrap $ Params'     $ findParams args
     scenarios'    = wrap $ Scenarios'  $ findScenarios args
     matchers'     = wrap $ Matchers'   $ findMatchers args
-    status'       = wrap $ Successful' $ findSuccessful args
+    status'       = wrap $ Failed'     $ findFailed args
     date'         = wrap $ TodayOnly'  $ (findTodayOnly args, tst)
     in toQuery prefs (params' <> scenarios' <> matchers' <> status' <> date')
 
@@ -375,7 +375,7 @@ instance ToQueryExpr (Analyze, UTCTime) where
     params'       = wrap $ Params'     $ analyzeParams args
     scenarios'    = wrap $ Scenarios'  $ analyzeScenarios args
     matchers'     = wrap $ Matchers'   $ analyzeMatchers args
-    status'       = wrap $ Successful' $ analyzeSuccessful args
+    status'       = wrap $ Failed'     $ analyzeFailed args
     date'         = wrap $ TodayOnly'  $ (analyzeTodayOnly args, tst)
     in toQuery prefs (params' <> scenarios' <> matchers' <> status' <> date')
 
@@ -386,7 +386,7 @@ instance ToQueryExpr (Rm, UTCTime) where
     params'       = wrap $ Params'     $ rmParams args
     scenarios'    = wrap $ Scenarios'  $ rmScenarios args
     matchers'     = wrap $ Matchers'   $ rmMatchers args
-    status'       = wrap $ Successful' $ rmSuccessful args
+    status'       = wrap $ Failed'     $ rmFailed args
     date'         = wrap $ TodayOnly'  $ (rmTodayOnly args, tst)
     in toQuery prefs (params' <> scenarios' <> matchers' <> status' <> date')
 
@@ -406,7 +406,7 @@ instance ToQueryExpr (Query, UTCTime) where
     params'       = wrap $ Params'     $ queryParams args
     scenarios'    = wrap $ Scenarios'  $ queryScenarios args
     matchers'     = wrap $ Matchers'   $ queryMatchers args
-    status'       = wrap $ Successful' $ querySuccessful args
+    status'       = wrap $ Failed'     $ queryFailed args
     date'         = wrap $ TodayOnly'  $ (queryTodayOnly args, tst)
     in toQuery prefs (params' <> scenarios' <> matchers' <> status' <> date')
 
@@ -414,6 +414,7 @@ instance ToQueryExpr (Query, UTCTime) where
 -- Extra helpers
 
 cliScenarios :: [String] -> [ScenarioDescription m] -> [ScenarioDescription m]
+cliScenarios [] scii    = scii
 cliScenarios names scii = [sc | sc <- scii, sName sc `elem` map T.pack names]
 
 -- | Main program for the 'run' command.
