@@ -6,7 +6,7 @@ module Main where
 import Laborantin.DSL
 import Laborantin.Types
 import Laborantin.Implementation
-import Laborantin.CLIApp
+import Laborantin.CLI
 import qualified Data.Text as T
 
 {- 
