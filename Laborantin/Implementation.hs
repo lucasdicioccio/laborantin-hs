@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds #-}
 
 module Laborantin.Implementation (
         EnvIO, runEnvIO
     , defaultBackend
-    , defaultResult
     , defaultLog
     , liftIO
 ) where
@@ -99,7 +99,7 @@ instance FromJSON StoredExecution where
 -- and logs.
 --
 defaultBackend :: Backend EnvIO
-defaultBackend = Backend "default EnvIO backend" prepare finalize setup run teardown analyze recover result load log rm
+defaultBackend = Backend "default EnvIO backend" prepare finalize setup run teardown analyze recover load log rm consume produce
   where prepare :: ScenarioDescription EnvIO -> ParameterSet -> EnvIO (Execution EnvIO,Finalizer EnvIO)
         prepare = prepareNewScenario
         finalize  exec finalizer = do
@@ -115,7 +115,8 @@ defaultBackend = Backend "default EnvIO backend" prepare finalize setup run tear
         analyze exec      = callHooks "analyze" (eScenario exec)
         recover err exec  = unAction (doRecover err)
                             where doRecover = fromMaybe (\_ -> Action $ return ()) (sRecoveryAction $ eScenario exec) 
-        result exec       = return . defaultResult exec
+        consume exec r    = return $ defaultConsume exec r
+        produce exec r    = return $ defaultProduce exec r
         log exec          = return $ defaultLog exec
         rm exec           = liftIO $ removeDirectoryRecursive $ ePath exec
 
@@ -250,11 +251,16 @@ loadAncestors scs pairs = catMaybes <$> mapM loadFromPathAndName pairs
             let sc = find ((== name) . sName) scs
             maybe (return Nothing) (\x -> Just <$> loadOne x scs path) sc
 
--- | Default result handler for the 'EnvIO' monad (see 'defaultBackend').
-defaultResult :: Execution m -> FilePath -> Result EnvIO
-defaultResult exec basename = Result path read append write
+-- | Default result consumer for the 'EnvIO' monad (see 'defaultBackend').
+defaultConsume :: Execution m -> ResultDescription Consumed -> Result EnvIO Consumed
+defaultConsume exec (RDesc basename) = ConsumedResult read
   where read        = liftIO $ T.readFile path
-        append dat  = liftIO $ T.appendFile path dat
+        path        = intercalate "/" [ePath exec, basename]
+
+-- | Default result producer for the 'EnvIO' monad (see 'defaultBackend').
+defaultProduce :: Execution m -> ResultDescription Produced -> Result EnvIO Produced
+defaultProduce exec (RDesc basename) = ProducedResult append write
+  where append dat  = liftIO $ T.appendFile path dat
         write dat   = liftIO $ T.writeFile path dat
         path        = intercalate "/" [ePath exec, basename]
 

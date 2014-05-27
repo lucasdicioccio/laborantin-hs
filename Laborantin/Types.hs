@@ -4,6 +4,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Laborantin.Types (
         ScenarioDescription (..)
@@ -17,13 +19,15 @@ module Laborantin.Types (
     ,   mergeParamSpaces
     ,   updateParam
     ,   expandValue
-    ,   Result (..)
     ,   Backend (..)
     ,   Execution (..)
     ,   StoredExecution (..)
     ,   ExecutionError (..)
     ,   AnalysisError (..)
     ,   ExecutionStatus (..)
+    ,   ResultDescription (..)
+    ,   FlowDirection (..)
+    ,   Result (..)
     ,   Finalizer (..)
     ,   LogHandler (..)
     ,   Step
@@ -87,10 +91,21 @@ data ScenarioDescription m = SDesc {
   , sRecoveryAction :: Maybe (ExecutionError -> Action m)
   , sDeps   :: [Dependency m]
   , sQuery  :: TExpr Bool
+  , sConsumed :: [ResultDescription Consumed]
+  , sProduced :: [ResultDescription Produced]
   } deriving (Show)
 
 emptyScenario :: ScenarioDescription m
-emptyScenario = SDesc "" "" M.empty M.empty Nothing [] noQuery
+emptyScenario = SDesc "" "" M.empty M.empty Nothing [] noQuery [] []
+
+-- | Whether we can consume or produce the result
+data FlowDirection = Consumed | Produced
+  deriving Show
+
+-- | A ResultDescription
+data ResultDescription :: FlowDirection -> * where
+  RDesc :: FilePath  -> ResultDescription a
+  deriving (Show)
 
 -- | A ParameterDescription description carries information for a single
 -- parameter.
@@ -233,23 +248,18 @@ data Backend m = Backend {
   , bTeardown  :: Execution m -> Step m ()
   , bAnalyze   :: Execution m -> Step m ()
   , bRecover   :: ExecutionError -> Execution m -> Step m ()
-  , bResult    :: Execution m -> FilePath -> Step m (Result m)
   , bLoad      :: [ScenarioDescription m] -> TExpr Bool -> m [Execution m]
   , bLogger    :: Execution m -> Step m (LogHandler m)
   , bRemove    :: Execution m -> m ()
+  , bConsume   :: Execution m -> ResultDescription Consumed -> Step m (Result m Consumed)
+  , bProduce   :: Execution m -> ResultDescription Produced -> Step m (Result m Produced)
 }
 
 -- | Backends must generate results that are easy to operate. They represent
 -- files with read/write/append operations as execution steps.
---
--- Note that Backend might not implement all three of read, write, append
--- operations.
-data Result m = Result {
-    pPath   :: FilePath
-  , pRead   :: Step m Text
-  , pAppend :: Text -> Step m ()
-  , pWrite  :: Text -> Step m ()
-}
+data Result m (a :: FlowDirection) where
+  ConsumedResult :: Step m Text -> Result m Consumed
+  ProducedResult :: (Text -> Step m ()) -> (Text -> Step m ()) -> Result m Produced
 
 newtype LogHandler m = LogHandler { lLog :: Text -> Step m () }
 

@@ -1,10 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE DataKinds #-}
 
 module Laborantin.DSL (
         scenario
     ,   describe
     ,   parameter
+    ,   produces
+    ,   consumes
     ,   require
     ,   requireTExpr
     ,   dependency
@@ -28,7 +32,8 @@ module Laborantin.DSL (
     ,   setVar
     ,   recover
     ,   analyze
-    ,   result
+    ,   consume
+    ,   produce
     ,   writeResult
     ,   appendResult
     ,   logger
@@ -180,6 +185,27 @@ require sc txt = requireTExpr sc query
     where query = either (const deflt) (toTExpr deflt) (parseUExpr defaultParsePrefs (unpack txt))
           deflt = (B True)
 
+-- | Declare that the scenario produces a result
+produces :: (MonadIO m, Monad m)
+  => FilePath
+  -> State (ScenarioDescription m) (ResultDescription Produced)
+produces resname = do
+  let result = (RDesc resname)
+  modify (add result)
+  return result
+  where add x sc@(SDesc {sProduced = xs}) = sc { sProduced = x:xs }
+
+-- | Declare that the scenario produces a result
+consumes :: (MonadIO m, Monad m)
+  => FilePath
+  -> State (ScenarioDescription m) (ResultDescription Consumed)
+consumes resname = do
+  let result = (RDesc resname)
+  modify (add result)
+  return result
+  where add x sc@(SDesc {sConsumed = xs}) = sc { sConsumed = x:xs }
+
+
 -- | Returns current execution
 self :: Monad m => Step m (Execution m)
 self = liftM snd ask
@@ -188,29 +214,33 @@ self = liftM snd ask
 backend :: Monad m => Step m (Backend m)
 backend = liftM fst ask
 
--- | Returns a 'Result' object for the given name.
---
--- Implementations will return their specific results.
-result :: Monad m => FilePath -> Step m (Result m)
-result name = do 
+-- | Returns a consumable 'Result' object for the given result description.
+consume :: Monad m => ResultDescription Consumed -> Step m (Result m Consumed)
+consume desc = do 
   (b,r) <- ask
-  bResult b r name
+  bConsume b r desc
+
+-- | Returns a produceable 'Result' object for the given result description.
+produce :: Monad m => ResultDescription Produced -> Step m (Result m Produced)
+produce desc = do 
+  (b,r) <- ask
+  bProduce b r desc
 
 -- | Write (overwrite) the result in its entirety.
 --
 -- Implementations will return their specific results.
-writeResult :: Monad m => FilePath  -- ^ result name
+writeResult :: Monad m => ResultDescription Produced  -- ^ result produced
                        -> Text  -- ^ result content
                        -> Step m ()
-writeResult name dat = result name >>= flip pWrite dat
+writeResult desc dat = produce desc >>= \(ProducedResult _ write) -> write dat
 
 -- | Appends a chunk of data to the result. 
 --
 -- Implementations will return their specific results.
-appendResult :: Monad m => FilePath -- ^ result name
+appendResult :: Monad m => ResultDescription Produced -- ^ result produced
                         -> Text -- ^ content to add
                         -> Step m ()
-appendResult name dat = result name >>= flip pAppend dat
+appendResult desc dat = produce desc >>= \(ProducedResult append _) -> append dat
 
 -- | Return a 'LogHandler' object for this scenario.
 logger :: Monad m => Step m (LogHandler m)
