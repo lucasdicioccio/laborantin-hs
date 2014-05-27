@@ -1,6 +1,10 @@
 Changelog
 =========
 
+# 0.1.6.0 (unreleased)
+* use optparse-applicative
+   - enable with source <($binary --bash-completion-script $binary)
+
 # 0.1.5.2 (2014-04-18)
 * fix executable warnings
 
