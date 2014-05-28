@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TupleSections #-}
 
 module Laborantin.Implementation (
         EnvIO, runEnvIO
@@ -252,10 +254,16 @@ loadAncestors scs pairs = catMaybes <$> mapM loadFromPathAndName pairs
             maybe (return Nothing) (\x -> Just <$> loadOne x scs path) sc
 
 -- | Default result consumer for the 'EnvIO' monad (see 'defaultBackend').
-defaultConsume :: Execution m -> ResultDescription Consumed -> Result EnvIO Consumed
-defaultConsume exec (RDesc basename) = ConsumedResult read
-  where read        = liftIO $ T.readFile path
-        path        = intercalate "/" [ePath exec, basename]
+defaultConsume :: Execution EnvIO -> ResultDescription Consumed -> Result EnvIO Consumed
+defaultConsume exec (RDescC (SDesc {sName=n}) basename) = ConsumedResult readAction
+  where read e  = liftIO $ T.readFile $ intercalate "/" [ePath e, basename]
+
+        readAction :: Step EnvIO [(Execution EnvIO, Text)]
+        readAction = mapM fRead $ (filter (f n) . eAncestors) exec
+                     where f n e = (sName . eScenario) e == n
+
+        fRead :: Execution EnvIO -> Step EnvIO (Execution EnvIO, Text)
+        fRead e = (e,) <$> read e
 
 -- | Default result producer for the 'EnvIO' monad (see 'defaultBackend').
 defaultProduce :: Execution m -> ResultDescription Produced -> Result EnvIO Produced

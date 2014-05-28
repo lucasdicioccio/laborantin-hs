@@ -15,9 +15,12 @@ import qualified Data.Text as T
 
 pong :: ScenarioDescription EnvIO
 pong = scenario "pong" $ do
+    pingOut <- consumes ping "raw-result"
     parameter "foo" $ do
         describe "foo"
         values [str "foo"]
+    run $ do
+      readResults pingOut >>= liftIO . print . map snd
 
 ping :: ScenarioDescription EnvIO
 ping = scenario "ping" $ do

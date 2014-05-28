@@ -93,7 +93,7 @@ data ScenarioDescription m = SDesc {
   , sQuery  :: TExpr Bool
   , sConsumed :: [ResultDescription Consumed]
   , sProduced :: [ResultDescription Produced]
-  } deriving (Show)
+  }
 
 emptyScenario :: ScenarioDescription m
 emptyScenario = SDesc "" "" M.empty M.empty Nothing [] noQuery [] []
@@ -102,10 +102,11 @@ emptyScenario = SDesc "" "" M.empty M.empty Nothing [] noQuery [] []
 data FlowDirection = Consumed | Produced
   deriving Show
 
--- | A ResultDescription
+-- | A ResultDescription caries all information to either produce or consume a
+-- result.
 data ResultDescription :: FlowDirection -> * where
-  RDesc :: FilePath  -> ResultDescription a
-  deriving (Show)
+  RDesc :: FilePath -> ResultDescription Produced
+  RDescC :: ScenarioDescription m -> FilePath -> ResultDescription Consumed
 
 -- | A ParameterDescription description carries information for a single
 -- parameter.
@@ -152,7 +153,7 @@ data Execution m = Exec {
   , eStatus   :: ExecutionStatus
   , eAncestors   :: [Execution m] 
   , eTimeStamps :: (UTCTime,UTCTime)
-} deriving (Show)
+  }
 
 -- | An StoredExecution is a stripped-down version of an Execution.
 --
@@ -241,7 +242,9 @@ updateParam ps key values = M.updateWithKey f key ps
 -- unclutter type definitions everywhere.
 data Backend m = Backend {
     bName      :: Text
-  , bPrepareExecution  :: ScenarioDescription m -> ParameterSet -> m (Execution m,Finalizer m)
+  , bPrepareExecution :: ScenarioDescription m
+                      -> ParameterSet
+                      -> m (Execution m, Finalizer m)
   , bFinalizeExecution :: Execution m -> Finalizer m -> m ()
   , bSetup     :: Execution m -> Step m ()
   , bRun       :: Execution m -> Step m ()
@@ -251,14 +254,18 @@ data Backend m = Backend {
   , bLoad      :: [ScenarioDescription m] -> TExpr Bool -> m [Execution m]
   , bLogger    :: Execution m -> Step m (LogHandler m)
   , bRemove    :: Execution m -> m ()
-  , bConsume   :: Execution m -> ResultDescription Consumed -> Step m (Result m Consumed)
-  , bProduce   :: Execution m -> ResultDescription Produced -> Step m (Result m Produced)
+  , bConsume   :: Execution m 
+               -> ResultDescription Consumed
+               -> Step m (Result m Consumed)
+  , bProduce   :: Execution m
+               -> ResultDescription Produced
+               -> Step m (Result m Produced)
 }
 
 -- | Backends must generate results that are easy to operate. They represent
--- files with read/write/append operations as execution steps.
+-- files with read or write/append operations as execution steps.
 data Result m (a :: FlowDirection) where
-  ConsumedResult :: Step m Text -> Result m Consumed
+  ConsumedResult :: Step m [(Execution m, Text)] -> Result m Consumed
   ProducedResult :: (Text -> Step m ()) -> (Text -> Step m ()) -> Result m Produced
 
 newtype LogHandler m = LogHandler { lLog :: Text -> Step m () }

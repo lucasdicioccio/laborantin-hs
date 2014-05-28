@@ -32,10 +32,9 @@ module Laborantin.DSL (
     ,   setVar
     ,   recover
     ,   analyze
-    ,   consume
-    ,   produce
     ,   writeResult
     ,   appendResult
+    ,   readResults
     ,   logger
     ,   dbg
     ,   err
@@ -197,10 +196,11 @@ produces resname = do
 
 -- | Declare that the scenario produces a result
 consumes :: (MonadIO m, Monad m)
-  => FilePath
+  => ScenarioDescription m
+  -> FilePath
   -> State (ScenarioDescription m) (ResultDescription Consumed)
-consumes resname = do
-  let result = (RDesc resname)
+consumes srcSc resname = do
+  let result = (RDescC srcSc resname)
   modify (add result)
   return result
   where add x sc@(SDesc {sConsumed = xs}) = sc { sConsumed = x:xs }
@@ -219,6 +219,10 @@ consume :: Monad m => ResultDescription Consumed -> Step m (Result m Consumed)
 consume desc = do 
   (b,r) <- ask
   bConsume b r desc
+
+-- | Returns the result for the consumable 'Result' object generated with `consumes`.
+readResults :: Monad m => ResultDescription Consumed -> Step m [(Execution m, Text)]
+readResults desc = consume desc >>= \(ConsumedResult act) -> act
 
 -- | Returns a produceable 'Result' object for the given result description.
 produce :: Monad m => ResultDescription Produced -> Step m (Result m Produced)
