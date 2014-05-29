@@ -41,7 +41,7 @@ module Laborantin.DSL (
 ) where
 
 import qualified Data.Map as M
-import Data.List (partition, nubBy)
+import Data.List (intersperse, partition, nubBy)
 import Laborantin
 import Laborantin.Types
 import Laborantin.Query
@@ -54,6 +54,7 @@ import Control.Applicative
 import Data.Dynamic
 import Data.Text (Text, pack, unpack)
 import qualified Data.Text as T
+import Data.Maybe (fromMaybe)
 
 class Describable a where
   changeDescription :: Text -> a -> a
@@ -158,19 +159,25 @@ appendHook :: Text -> Step m () -> State (ScenarioDescription m) ()
 appendHook name f = modify (addHook name $ Action f)
   where addHook k v sc0 = sc0 { sHooks = M.insert k v (sHooks sc0) }
 
--- | Defines the TExpr Bool to load ancestor
-requireTExpr :: (MonadIO m, Monad m) => ScenarioDescription m -> TExpr Bool -> State (ScenarioDescription m) ()
-requireTExpr sc query = do
-    let depName = T.concat [(sName sc),  " ~> ", (pack $ show query)]
-    modify (\sc0 -> sc0 {sQuery = query})
-    dependency depName $ do
-        describe "auto-generated dependency for `require` statement"
+-- | Defines a dependency with a TExpr Bool to load ancestor
+requireTExpr :: (MonadIO m, Monad m)
+             => ScenarioDescription m        -- ^ Scenario we want to depend on
+             -> Text                         -- ^ Name for the dependency
+             -> Text                         -- ^ Description for the dependency
+             -> (Execution m -> TExpr Bool)  -- ^ Function to build a TExpr from the target Execution
+             -> State (ScenarioDescription m) ()
+requireTExpr sc name desc queryF = do
+    dependency name $ do
+        describe desc
         check $ \exec -> do
+            let query = (queryF exec)
             let ancestors = filter ((sName sc ==) . sName . eScenario) (eAncestors exec)
             let existing = map eParamSet ancestors
             let missing = missingParameterSets sc query existing
             return (null $ missing)
+
         resolve $ \(exec,backend) -> do
+            let query = queryF exec
             storedAncestors <- load backend [sc] query
             let (execAncestors, otherAncestors) = partition ((sName sc ==) . sName . eScenario) (eAncestors exec)
             let allAncestors = nubBy (samePath) (storedAncestors ++ execAncestors)
@@ -180,9 +187,12 @@ requireTExpr sc query = do
 
 -- | Defines the TExpr Bool to load ancestor
 require :: (MonadIO m, Monad m) => ScenarioDescription m -> Text -> State (ScenarioDescription m) ()
-require sc txt = requireTExpr sc query
+require sc txt = requireTExpr sc name desc (const query)
     where query = either (const deflt) (toTExpr deflt) (parseUExpr defaultParsePrefs (unpack txt))
+          name = T.concat [(sName sc),  " ~> ", (pack $ show query)]
+          desc = "auto-generated dependency for `require` statement"
           deflt = (B True)
+
 
 -- | Declare that the scenario produces a result
 produces :: (MonadIO m, Monad m)
@@ -194,17 +204,44 @@ produces resname = do
   return result
   where add x sc@(SDesc {sProduced = xs}) = sc { sProduced = x:xs }
 
--- | Declare that the scenario produces a result
+-- | Declare that the scenario produces a result and that we inherit some of its
+-- scenario's parameters.
+--
+-- This function lets you aggregate results.
 consumes :: (MonadIO m, Monad m)
   => ScenarioDescription m
   -> FilePath
+  -> [Text]
   -> State (ScenarioDescription m) (ResultDescription Consumed)
-consumes srcSc resname = do
-  let result = (RDescC srcSc resname)
-  modify (add result)
+consumes sc resname ks = do
+  let result = (RDescC sc resname)
+  let inherited = M.filterWithKey (\k _ -> k `elem` ks) (sParams sc)
+  modify (addR result)
+  modify (addP inherited)
+  requireTExpr sc depName depDesc (queryFromExecParams ks)
   return result
-  where add x sc@(SDesc {sConsumed = xs}) = sc { sConsumed = x:xs }
+  where addR x sc@(SDesc {sConsumed = xs})  = sc { sConsumed = x:xs }
+        addP xs sc@(SDesc {sParams = ys}) = sc { sParams = ys `M.union` xs }
+        depName = T.concat [sName sc, "-", T.pack resname]
+        depDesc = T.concat $ ["inherited from result `", T.pack resname, "` o `", sName sc, "` along parameters: "] ++ intersperse ", " ks
 
+-- | Builds a TExpr Bool query for a subset of the params of a given
+-- execution.
+queryFromExecParams :: [Text] -> Execution m -> TExpr Bool
+queryFromExecParams ks exec = conjunction exprs 
+  where conjunction []     = B True
+        conjunction [x]    = x
+        conjunction (x:xs) = And x (conjunction xs)
+        exprs = map paramQuery ks
+        paramQuery k = fromMaybe
+            (B False)
+            (M.lookup k (eParamSet exec) >>= queryFromParam k)
+
+-- | Builds a TExpr Bool query for a given param.
+queryFromParam :: Text -> ParameterValue -> Maybe (TExpr Bool)
+queryFromParam k (StringParam v) = Just $ (Eq (SCoerce (ScParam k)) (S v))
+queryFromParam k (NumberParam v) = Just $ (Eq (NCoerce (ScParam k)) (N v))
+queryFromParam _ _               = Nothing
 
 -- | Returns current execution
 self :: Monad m => Step m (Execution m)

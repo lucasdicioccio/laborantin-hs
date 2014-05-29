@@ -25,7 +25,7 @@ pingDep = scenario "pingDep" $ do
 ping :: ScenarioDescription EnvIO
 ping = scenario "ping" $ do
   describe "ping to a remote server"
-  require pingDep "@sc.param 'foo' == 'foo'" 
+  pingDepOut <- consumes pingDep "raw-result" ["foo"]
   parameter "destination" $ do
     describe "a destination server (host or ip)"
     values [str "example.com", str "probecraft.net"]
@@ -38,7 +38,6 @@ ping = scenario "ping" $ do
   setup $ do
     setVar "hello" ("world"::String)
     dbg "setting up scenario"
-  pingDepOut <- consumes pingDep "raw-result"
   run $ do
     ancestors "pingDep" >>= liftIO . print . (\n ->  show n ++ " ancestor(s)") . length
     (Just who :: Maybe String) <- getVar "hello"
