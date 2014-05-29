@@ -25,7 +25,7 @@ import Data.Aeson (encode)
 import Data.List (intercalate)
 import qualified Data.ByteString.Lazy.Char8 as C
 
-import Laborantin.Types (UExpr (..), TExpr (..), ScenarioDescription (..), Execution (..), ParameterDescription (..), expandValue, paramSets, ResultDescription (..), FlowDirection (..))
+import Laborantin.Types (UExpr (..), TExpr (..), ScenarioDescription (..), Execution (..), ParameterDescription (..), expandValue, paramSets, ResultDescription (..), FlowDirection (..), Dependency (..))
 import Laborantin.Implementation (EnvIO, runEnvIO, defaultBackend)
 import Laborantin (load, remove, runAnalyze, prepare)
 import Laborantin.Query.Interpret (toTExpr)
@@ -451,6 +451,8 @@ describeMain scii args = do
             T.append "# Scenario: " (sName sc)
           , T.append "    " (sDesc sc)
           , T.concat ["    ", (T.pack . show . length . paramSets $ sParams sc), " parameter combinations by default"]
+          , "## Dependencies:"
+          , unlines' $ map depLine $ sDeps sc
           , "## Produces:"
           , unlines' $ map productLine $ sProduced sc
           , "## Consumes:"
@@ -461,6 +463,8 @@ describeMain scii args = do
 
         unlines' :: [Text] -> Text
         unlines' = T.intercalate "\n"
+
+        depLine d = T.concat [dName d, " (", dDesc d, ")"]
 
         paramLine n p = unlines' [
                           T.append "### " n
