@@ -13,19 +13,19 @@ import qualified Data.Text as T
  - Example
  -}
 
-pong :: ScenarioDescription EnvIO
-pong = scenario "pong" $ do
-    pingOut <- consumes ping "raw-result"
-    parameter "foo" $ do
-        describe "foo"
-        values [str "foo"]
-    run $ do
-      readResults pingOut >>= liftIO . print . map snd
+pingDep :: ScenarioDescription EnvIO
+pingDep = scenario "pingDep" $ do
+  pingDepOut <- produces "raw-result"
+  parameter "foo" $ do
+    describe "foo"
+    values [str "foo"]
+  run $ do
+    writeResult pingDepOut "a sort of result stored as a separate file"
 
 ping :: ScenarioDescription EnvIO
 ping = scenario "ping" $ do
   describe "ping to a remote server"
-  require pong "@sc.param 'foo' == 'foo'" 
+  require pingDep "@sc.param 'foo' == 'foo'" 
   parameter "destination" $ do
     describe "a destination server (host or ip)"
     values [str "example.com", str "probecraft.net"]
@@ -36,21 +36,21 @@ ping = scenario "ping" $ do
     describe "number of back-to-back packets to send"
     values [range 1 100 10] 
   setup $ do
-      setVar "hello" ("world"::String)
-      dbg "setting up scenario"
-  pingOut <- produces "raw-result"
+    setVar "hello" ("world"::String)
+    dbg "setting up scenario"
+  pingDepOut <- consumes pingDep "raw-result"
   run $ do
-    ancestors "pong" >>= liftIO . print . (\n ->  show n ++ " ancestor(s)") . length
+    ancestors "pingDep" >>= liftIO . print . (\n ->  show n ++ " ancestor(s)") . length
     (Just who :: Maybe String) <- getVar "hello"
     liftIO . print . ("hello "++) $ who
     (StringParam srv) <- param "destination"
+    readResults pingDepOut >>= liftIO . print . map snd
     case srv of
-        "failure.example" -> err "noooo"
-        host              -> dbg $ T.append "mimic sending ping to " host
-    writeResult pingOut "a sort of result stored as a separate file"
+      "failure.example" -> err "noooo"
+      host              -> dbg $ T.append "mimic sending ping to " host
   teardown $ dbg "here we could run some teardown action"
   recover $ \e -> dbg $ T.append "here we could recover from error: " (T.pack $ show e)
   analyze $ liftIO . print $ ("analyze action" :: String)
 
 main :: IO ()
-main = defaultMain [ping, pong]
+main = defaultMain [ping, pingDep]
