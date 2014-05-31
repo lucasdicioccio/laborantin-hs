@@ -215,10 +215,11 @@ consumes :: (MonadIO m, Monad m)
   -> State (ScenarioDescription m) (ResultDescription Consumed)
 consumes sc resname ks = do
   let result = (RDescC sc resname)
-  let inherited = M.filterWithKey (\k _ -> k `elem` ks) (sParams sc)
+  let keyFilter k _ = not $ k `elem` ks
+  let inherited = M.filterWithKey keyFilter (sParams sc)
   modify (addR result)
   modify (addP inherited)
-  requireTExpr sc depName depDesc (queryFromExecParams ks)
+  requireTExpr sc depName depDesc $ queryFromExecParams $ map fst $ filter (uncurry keyFilter) $ M.toList $ sParams sc
   return result
   where addR x sc@(SDesc {sConsumed = xs})  = sc { sConsumed = x:xs }
         addP xs sc@(SDesc {sParams = ys}) = sc { sParams = ys `M.union` xs }
