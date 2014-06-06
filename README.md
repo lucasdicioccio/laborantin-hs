@@ -256,9 +256,15 @@ open-source: use it, fork it, or clone it.
 
 For version 0.1.6.x
 
-* [improvements] changes 'require' to support parametrization
-  - needs to pass extra arguments
-* [feature] exports to propose exported files using "show-exports" command
+* [feature] "show-results" command for quick-access to declared result
+
+For version 0.1.7.x
+
+* [feature] propagate the whole parameter space to every result-dependency when
+  aggregating results (this way, we can easily do things like 
+  `labor run -s some-analysis -p some-param-for-a-raw-data-collection:int:42`
+
+For version 0.1.8.x
+
 * [feature] labor-script binary for easy-integration of other scripts
   - will need to expand parameter spaces by extending undeclared parameters
-* [code] cleanup/share/unshare parts of implementation/laborantin/cli script
