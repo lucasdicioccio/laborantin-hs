@@ -256,8 +256,6 @@ open-source: use it, fork it, or clone it.
 
 For version 0.1.6.x
 
-* [feature] "show-results" command for quick-access to declared result
-
 For version 0.1.7.x
 
 * [feature] propagate the whole parameter space to every result-dependency when

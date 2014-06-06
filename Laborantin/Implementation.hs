@@ -8,6 +8,7 @@ module Laborantin.Implementation (
     , defaultBackend
     , defaultLog
     , liftIO
+    , executionResultPath
 ) where
 
 import Control.Monad.IO.Class (liftIO)
@@ -256,7 +257,7 @@ loadAncestors scs pairs = catMaybes <$> mapM loadFromPathAndName pairs
 -- | Default result consumer for the 'EnvIO' monad (see 'defaultBackend').
 defaultConsume :: Execution EnvIO -> ResultDescription Consumed -> Result EnvIO Consumed
 defaultConsume exec (RDescC (SDesc {sName=n}) basename) = ConsumedResult readAction
-  where read e  = liftIO $ T.readFile $ intercalate "/" [ePath e, basename]
+  where read e  = liftIO $ T.readFile $ executionResultPath exec basename
 
         readAction :: Step EnvIO [(Execution EnvIO, Text)]
         readAction = mapM fRead $ (filter (f n) . eAncestors) exec
@@ -270,7 +271,11 @@ defaultProduce :: Execution m -> ResultDescription Produced -> Result EnvIO Prod
 defaultProduce exec (RDesc basename) = ProducedResult append write
   where append dat  = liftIO $ T.appendFile path dat
         write dat   = liftIO $ T.writeFile path dat
-        path        = intercalate "/" [ePath exec, basename]
+        path        = executionResultPath exec basename
+
+-- | Filepath where to find a given execution-specific result.
+executionResultPath :: Execution m -> FilePath -> FilePath
+executionResultPath exec basename = intercalate "/" [ePath exec, basename]
 
 -- | Default logger for the 'EnvIO' monad (see 'defaultBackend').
 defaultLog :: Execution m -> LogHandler EnvIO

@@ -10,6 +10,8 @@ import Control.Exception (finally)
 import Options.Applicative
 import Data.Time (UTCTime(..), getCurrentTime)
 import System.Locale (defaultTimeLocale)
+import System.Exit (exitFailure)
+import System.Directory (doesFileExist)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -18,7 +20,7 @@ import Data.Either (rights)
 import Data.Maybe (catMaybes)
 import Control.Concurrent (readChan, writeChan, Chan (..), newChan)
 import Control.Concurrent.Async (async)
-import Control.Monad (replicateM_, forM_, void)
+import Control.Monad (replicateM_, forM_, void, (<=<))
 import Data.Monoid
 import Data.Aeson (encode)
 
@@ -26,7 +28,7 @@ import Data.List (intercalate)
 import qualified Data.ByteString.Lazy.Char8 as C
 
 import Laborantin.Types (UExpr (..), TExpr (..), ScenarioDescription (..), Execution (..), ParameterDescription (..), expandValue, paramSets, ResultDescription (..), FlowDirection (..), Dependency (..))
-import Laborantin.Implementation (EnvIO, runEnvIO, defaultBackend)
+import Laborantin.Implementation (EnvIO, runEnvIO, defaultBackend, executionResultPath)
 import Laborantin (load, remove, runAnalyze, prepare)
 import Laborantin.Query.Interpret (toTExpr)
 import Laborantin.Query.Parse (parseUExpr, ParsePrefs (..))
@@ -58,6 +60,15 @@ data Find = Find
   , findMatchers    :: [String]
   , findFailed      :: Bool
   , findTodayOnly   :: Bool
+  } deriving (Show)
+
+data Results = Results
+  { resultsScenarios   :: [String]
+  , resultsNames       :: [String]
+  , resultsParams      :: [String]
+  , resultsMatchers    :: [String]
+  , resultsFailed      :: Bool
+  , resultsTodayOnly   :: Bool
   } deriving (Show)
 
 data Analyze = Analyze
@@ -96,6 +107,7 @@ data Command = RunCommand Run
   | DescribeCommand Describe
   | AnalyzeCommand Analyze
   | FindCommand Find
+  | ResultsCommand Results
   | RmCommand Rm
   | ParamsCommand Params
   | QueryCommand Query
@@ -113,6 +125,12 @@ paramsOpt = many $ strOption (
   <> short 'p'
   <> metavar "PARAMS"
   <> help "name:type:value tuple for parameter.")
+
+resultNamesOpt = many $ strOption (
+     long "result-names"
+  <> short 'r'
+  <> metavar "RESULTS"
+  <> help "name of the result(s) to show")
 
 matchersOpt = many $ strOption (
      long "matcher"
@@ -145,6 +163,9 @@ describe scii = Describe <$> scenariosOpt scii
 
 find :: [String] -> Parser Find
 find scii = Find <$> scenariosOpt scii <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag
+
+results :: [String] -> Parser Results
+results scii = Results <$> scenariosOpt scii <*> resultNamesOpt <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag
 
 analyze :: [String] -> Parser Analyze
 analyze scii = Analyze <$> scenariosOpt scii <*> paramsOpt <*> matchersOpt <*> failedFlag <*> todayFlag <*> concurrencyLeveLOpt
@@ -182,6 +203,12 @@ findOpts scii = info (helper <*> find scii)
          <> progDesc "Find scenarios executions."
          <> header "finds scenarios")
 
+resultsOpts :: [String] -> ParserInfo Results
+resultsOpts scii = info (helper <*> results scii)
+          ( fullDesc
+         <> progDesc "Find results from scenarios executions."
+         <> header "finds results")
+
 analyzeOpts :: [String] -> ParserInfo Analyze
 analyzeOpts scii = info (helper <*> analyze scii)
           ( fullDesc
@@ -211,6 +238,7 @@ cmd scii = subparser ( command "run" (RunCommand <$> runOpts scii)
                <> command "continue" (ContinueCommand <$> continueOpts scii)
                <> command "describe" (DescribeCommand <$> describeOpts scii)
                <> command "find" (FindCommand <$> findOpts scii)
+               <> command "results" (ResultsCommand <$> resultsOpts scii)
                <> command "analyze" (AnalyzeCommand <$> analyzeOpts scii)
                <> command "rm" (RmCommand <$> rmOpts scii)
                <> command "params" (ParamsCommand <$> paramsOpts scii)
@@ -230,6 +258,7 @@ defaultMain xs = do
     ContinueCommand y -> continueMain xs y
     DescribeCommand y -> describeMain xs y
     FindCommand y     -> findMain xs y
+    ResultsCommand y  -> resultsMain xs y
     AnalyzeCommand y  -> analyzeMain xs y
     RmCommand y       -> rmMain xs y
     ParamsCommand y   -> paramsMain xs y
@@ -371,6 +400,17 @@ instance ToQueryExpr (Find, UTCTime) where
     date'         = wrap $ TodayOnly'  $ (findTodayOnly args, tst)
     in toQuery prefs (params' <> scenarios' <> matchers' <> status' <> date')
 
+instance ToQueryExpr (Results, UTCTime) where
+  toQuery prefs (args, tst) = let
+    wrap :: ToQueryExpr a => a -> Conjunction QueryExpr
+    wrap a = Conjunction $ toQuery prefs $ a
+    params'       = wrap $ Params'     $ resultsParams args
+    scenarios'    = wrap $ Scenarios'  $ resultsScenarios args
+    matchers'     = wrap $ Matchers'   $ resultsMatchers args
+    status'       = wrap $ Failed'     $ resultsFailed args
+    date'         = wrap $ TodayOnly'  $ (resultsTodayOnly args, tst)
+    in toQuery prefs (params' <> scenarios' <> matchers' <> status' <> date')
+
 instance ToQueryExpr (Analyze, UTCTime) where
   toQuery prefs (args, tst) = let
     wrap :: ToQueryExpr a => a -> Conjunction QueryExpr
@@ -506,6 +546,28 @@ findMain scii args = do
                                       , "(" ++ show (eStatus e) ++ ")"
                                       , C.unpack $ encode (eParamSet e)
                                       ]
+
+-- | Main program for the 'results' command.
+resultsMain :: [ScenarioDescription EnvIO] -> Results -> IO ()
+resultsMain scii args = do
+  now <- getCurrentTime
+  let scenarios = cliScenarios (resultsScenarios args) scii
+      resultnames = resultsNames args
+      query = toQuery (ParsePrefs defaultTimeLocale) (args, now)
+      loadMatching  = load defaultBackend scenarios query
+  if null resultnames
+  then T.putStrLn "needs at least one result name" >> exitFailure
+  else do
+          matching <- runEnvIO loadMatching
+          forM_ matching (T.putStrLn <=< describeResults resultnames)
+  where describeResults :: [FilePath] -> Execution m -> IO Text
+        describeResults names e = do
+          let rPaths = map (executionResultPath e) names
+          validPaths <- mapM doesFileExist rPaths
+          return $ T.pack $ unlines $ zipWith (\x y -> showSuccess x ++ (' ':y)) validPaths rPaths
+        showSuccess :: Bool -> String
+        showSuccess True = "(ok)"
+        showSuccess _rue = "(KO)"
 
 -- | Main program for the 'analyze' command.
 analyzeMain :: [ScenarioDescription EnvIO] -> Analyze -> IO ()
