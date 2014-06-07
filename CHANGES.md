@@ -4,6 +4,10 @@ Changelog
 # 0.1.6.0 (unreleased)
 * use optparse-applicative
    - enable with source <($binary --bash-completion-script $binary)
+* new DSL syntax and new modeling for results
+    - it is now mandatory to declare which results a scenario consumes/produces
+    - print consumed/produced results in the 'describe' command
+* add 'result' command to list paths to results
 
 # 0.1.5.2 (2014-04-18)
 * fix executable warnings

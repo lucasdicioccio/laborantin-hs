@@ -258,11 +258,12 @@ For version 0.1.6.x
 
 For version 0.1.7.x
 
-* [feature] propagate the whole parameter space to every result-dependency when
+* [dsl] propagate the whole parameter space to every result-dependency when
   aggregating results (this way, we can easily do things like 
   `labor run -s some-analysis -p some-param-for-a-raw-data-collection:int:42`
+* [cli] command to plot the dep graph between results/scenarios
 
 For version 0.1.8.x
 
-* [feature] labor-script binary for easy-integration of other scripts
+* [dsl] labor-script binary for easy-integration of other scripts
   - will need to expand parameter spaces by extending undeclared parameters
