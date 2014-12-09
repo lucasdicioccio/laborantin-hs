@@ -138,7 +138,7 @@ matchersOpt = many $ strOption (
   <> metavar "MATCHERS"
   <> help "Matcher queries to specify the parameter space.")
 
-concurrencyLeveLOpt = option (
+concurrencyLeveLOpt = option auto (
      long "concurrency"
   <> short 'C'
   <> value 1
