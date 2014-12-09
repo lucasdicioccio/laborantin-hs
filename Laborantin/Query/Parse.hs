@@ -14,6 +14,7 @@ import qualified Data.Text as T
 import Text.Parsec
 import Text.Parsec.Char
 import Text.Parsec.Combinator
+import Text.Parsec.Prim
 import Data.Maybe
 import System.Locale
 import Data.Time
