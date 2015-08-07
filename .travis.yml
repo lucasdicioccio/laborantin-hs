@@ -1,0 +1,7 @@
+language: haskell
+ghc:
+ - 7.6
+ - 7.8
+# Travis complains with:
+# ghc_find: error, no such version 7.1
+# - 7.10

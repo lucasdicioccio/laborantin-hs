@@ -230,7 +230,8 @@ loadExisting scs qexpr = do
             paths <- map (("results" </> name) </>) . filter notDot <$> liftIO (getDirectoryContents' $ "results" </> name)
             allExecs <- mapM (loadOne sc scs) paths
             return $ filter (matchTExpr qexpr) allExecs
-            where notDot dirname = take 1 dirname /= "."
+            where notDot :: FilePath -> Bool
+                  notDot dirname = take 1 dirname /= "."
                   name = T.unpack $ sName sc
 
                   getDirectoryContents' dir = catchIOError (getDirectoryContents dir)
