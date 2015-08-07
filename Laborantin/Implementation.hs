@@ -30,6 +30,7 @@ import Data.List
 import Data.Maybe
 import Data.UUID
 import System.Directory
+import System.FilePath
 import System.Random
 import System.IO.Error
 import System.Log.Logger
@@ -158,7 +159,7 @@ prepareNewScenario  sc params = do
                 now <- getCurrentTime
                 id <- randomIO :: IO UUID
                 return (now,id)
-    let rundir = intercalate "/" ["results", T.unpack (sName sc), show uuid]
+    let rundir = "results" </> T.unpack (sName sc) </> show uuid
     let newExec = Exec sc params rundir Running [] (now,now)
     bPrint "resolving dependencies"
     exec <- resolveDependencies newExec
@@ -226,7 +227,7 @@ loadExisting scs qexpr = do
     concat <$> mapM f scs
     where f :: ScenarioDescription EnvIO -> EnvIO [Execution EnvIO]
           f sc = do
-            paths <- map (("results/" ++ name ++ "/") ++) . filter notDot <$> liftIO (getDirectoryContents' $ "results/" ++ name)
+            paths <- map (("results" </> name) </>) . filter notDot <$> liftIO (getDirectoryContents' $ "results" </> name)
             allExecs <- mapM (loadOne sc scs) paths
             return $ filter (matchTExpr qexpr) allExecs
             where notDot dirname = take 1 dirname /= "."
@@ -241,7 +242,7 @@ loadExisting scs qexpr = do
 -- only when file got corrupted/software changed too much.
 loadOne :: ScenarioDescription EnvIO -> [ScenarioDescription EnvIO] -> FilePath -> EnvIO (Execution EnvIO)
 loadOne sc scs path = do
-  stored <- decode <$> liftIO (BSL.readFile (path ++ "/execution.json"))
+  stored <- decode <$> liftIO (BSL.readFile (path </> "execution.json"))
   maybe (error $ "decoding: " ++ path) forStored stored
   where forStored (Stored params path status pairs tsts) = do
             ancestors <- loadAncestors scs pairs
@@ -275,13 +276,13 @@ defaultProduce exec (RDesc basename) = ProducedResult append write
 
 -- | Filepath where to find a given execution-specific result.
 executionResultPath :: Execution m -> FilePath -> FilePath
-executionResultPath exec basename = intercalate "/" [ePath exec, basename]
+executionResultPath exec basename = ePath exec </> basename
 
 -- | Default logger for the 'EnvIO' monad (see 'defaultBackend').
 defaultLog :: Execution m -> LogHandler EnvIO
 defaultLog exec = LogHandler logF
     where logF txt = liftIO $ debugM (loggerName exec) (T.unpack txt)
-          path = ePath exec ++ "/execution.log"
+          path = ePath exec </> "execution.log"
 
 loggerName :: Execution m -> String
 loggerName exec = "laborantin:" ++ ePath exec
