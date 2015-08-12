@@ -3,13 +3,16 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE CPP #-}
 
 module Laborantin.CLI (defaultMain) where
 
 import Control.Exception (finally)
 import Options.Applicative
-import Data.Time (UTCTime(..), getCurrentTime)
-import System.Locale (defaultTimeLocale)
+import Data.Time
+#if !(MIN_VERSION_time(1,5,0))
+import System.Locale
+#endif
 import System.Exit (exitFailure)
 import System.Directory (doesFileExist)
 import Data.Text (Text)
@@ -138,7 +141,7 @@ matchersOpt = many $ strOption (
   <> metavar "MATCHERS"
   <> help "Matcher queries to specify the parameter space.")
 
-concurrencyLeveLOpt = option (
+concurrencyLeveLOpt = option auto (
      long "concurrency"
   <> short 'C'
   <> value 1

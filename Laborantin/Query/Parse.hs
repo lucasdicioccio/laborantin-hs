@@ -1,4 +1,6 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP #-}
 
 module Laborantin.Query.Parse (
       expr
@@ -15,7 +17,9 @@ import Text.Parsec
 import Text.Parsec.Char
 import Text.Parsec.Combinator
 import Data.Maybe
+#if !(MIN_VERSION_time(1,5,0))
 import System.Locale
+#endif
 import Data.Time
 import Data.Time.Format
 
